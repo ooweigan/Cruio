@@ -1,0 +1,38 @@
+# Secrets and local environment values
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and package manager state
+node_modules/
+.bun/
+
+# Build, coverage, and cache output
+dist/
+build/
+coverage/
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Logs and runtime files
+*.log
+*.pid
+*.pid.lock
+
+# Local databases and generated media
+*.sqlite
+*.sqlite3
+data/
+storage/
+uploads/
+media/
+
+# Editor and operating-system files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
