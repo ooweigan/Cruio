@@ -23,6 +23,8 @@
     "dev:web": "bun run --filter '@toonflow/web' dev",
     "dev:server": "bun run --filter '@toonflow/server' dev",
     "start:server": "bun run --cwd apps/server start",
+    "db:migrate": "bun run --cwd apps/server db:migrate",
+    "test": "bun test ./apps/server/src",
     "build:server": "bun run --filter '@toonflow/server' build",
     "build": "bun run --filter '@toonflow/web' --filter '@toonflow/server' build",
     "typecheck": "bun run --filter '@toonflow/web' --filter '@toonflow/server' typecheck",
