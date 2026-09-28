@@ -29,7 +29,8 @@ on that project's canvas. Nodes can be selected, dragged, connected, and removed
 ordinary nodes can also be renamed. Changes auto-save to PostgreSQL. Selecting a node
 or edge alone does not create a new saved version. A project-canvas reference is layout
 only: removing it does not remove the binding or source workflow. Model execution is
-not connected yet.
+not connected yet. "Add node" opens a type picker first; only the currently implemented
+types can be selected.
 
 ## Checks
 
