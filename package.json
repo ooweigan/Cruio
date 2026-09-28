@@ -1,0 +1,35 @@
+{
+  "name": "cruio",
+  "description": "Cruio AI 图片与视频创作 Web SaaS。",
+  "license": "MIT",
+  "homepage": "https://github.com/HBAI-Ltd/Toonflow-app#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HBAI-Ltd/Toonflow-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HBAI-Ltd/Toonflow-app/issues",
+    "email": "ltlctools@outlook.com"
+  },
+  "type": "module",
+  "packageManager": "bun@1.3.14",
+  "workspaces": [
+    "apps/web",
+    "apps/server",
+    "packages/assets"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '@toonflow/web' --filter '@toonflow/server' dev",
+    "dev:web": "bun run --filter '@toonflow/web' dev",
+    "dev:server": "bun run --filter '@toonflow/server' dev",
+    "start:server": "bun run --cwd apps/server start",
+    "build:server": "bun run --filter '@toonflow/server' build",
+    "build": "bun run --filter '@toonflow/web' --filter '@toonflow/server' build",
+    "typecheck": "bun run --filter '@toonflow/web' --filter '@toonflow/server' typecheck",
+    "licenses": "bun scripts/generateThirdPartyLicenses.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "^7.0.2"
+  }
+}

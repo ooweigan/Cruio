@@ -4,6 +4,11 @@
 !.env.example
 *.pem
 *.key
+*.p8
+*.p12
+*.pfx
+*.keychain
+*.keychain-db
 
 # Dependencies and package manager state
 node_modules/
@@ -29,6 +34,21 @@ data/
 storage/
 uploads/
 media/
+work/
+backup/
+
+# Local browser and release tooling output
+.playwright-mcp/
+playwright-report/
+test-results/
+.hutch/
+.cottontail-tmp/
+apps/updateServer/build/
+apps/updateServer/public/
+apps/updateServer/releases/
+compat/macIntel/generated/
+packages/startup/assets/macX64/
+packages/startup/assets/macArm64/
 
 # Editor and operating-system files
 .DS_Store

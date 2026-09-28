@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "ESNext",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "types": [
+      "vite/client"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+    },
+  },
+  "include": [
+    "src/App.vue",
+    "src/main.ts",
+    "src/router/index.ts",
+    "src/pages/cruioCanvas.vue",
+    "vite.config.ts"
+  ]
+}

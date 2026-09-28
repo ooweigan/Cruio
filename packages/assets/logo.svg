@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Cruio">
+  <rect width="120" height="120" rx="30" fill="#1f5d42"/>
+  <path d="M82 37c-6-7-14-11-24-11-19 0-34 15-34 34s15 34 34 34c10 0 18-4 24-11" fill="none" stroke="#f7f6ef" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="82" cy="60" r="7" fill="#e4b45b"/>
+</svg>
