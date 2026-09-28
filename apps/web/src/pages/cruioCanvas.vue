@@ -20,9 +20,14 @@
               <button class="pickerClose" type="button" aria-label="关闭节点库" @click="closeNodePicker">×</button>
             </div>
             <template v-if="pickerView === 'types'">
-              <button class="nodeChoice" type="button" @click="addNode">
+              <button class="nodeChoice" type="button" @click="addContentNode('textNode')">
                 <span class="choiceMark">T</span>
-                <span><strong>创作节点</strong><small>记录想法和创作步骤，不会发起生成</small></span>
+                <span><strong>文本</strong><small>记录创作内容，可连接其他节点</small></span>
+                <span class="choiceArrow">↗</span>
+              </button>
+              <button class="nodeChoice" type="button" @click="addContentNode('promptNode')">
+                <span class="choiceMark promptMark">P</span>
+                <span><strong>提示词草稿</strong><small>整理提示词，不会发起生成</small></span>
                 <span class="choiceArrow">↗</span>
               </button>
               <button v-if="isProjectCanvas" class="nodeChoice" type="button" @click="showWorkflowChoices">
@@ -68,6 +73,11 @@
             节点标题
             <input v-model="selectedNode.data.label" class="textInput" aria-label="节点标题" />
           </label>
+          <label v-if="selectedNode.type === 'textNode' || selectedNode.type === 'promptNode'" class="fieldLabel contentField">
+            {{ selectedNode.type === "promptNode" ? "提示词草稿" : "文本内容" }}
+            <textarea v-model="selectedNode.data.content" class="textArea" :aria-label="selectedNode.type === 'promptNode' ? '提示词草稿内容' : '文本内容'" rows="7" />
+          </label>
+          <p v-if="selectedNode.type === 'promptNode'" class="fieldHint">这里只保存文字，暂不调用模型。</p>
           <button class="dangerButton" type="button" @click="removeSelectedNode">移除节点</button>
         </template>
         <template v-else-if="selectedEdgeId">
@@ -94,21 +104,12 @@
           @edgeClick="onEdgeClick"
           @paneClick="clearSelection"
         >
+          <template #node-default="{ data }"><canvasNodeCard nodeType="basicNode" :data="data" /></template>
+          <template #node-basicNode="{ data }"><canvasNodeCard nodeType="basicNode" :data="data" /></template>
+          <template #node-textNode="{ data }"><canvasNodeCard nodeType="textNode" :data="data" /></template>
+          <template #node-promptNode="{ data }"><canvasNodeCard nodeType="promptNode" :data="data" /></template>
           <template #node-workflowReference="{ data }">
-            <div class="workflowReferenceNode">
-              <handle type="target" :position="Position.Left" />
-              <span>工作流引用</span>
-              <strong>{{ bindingFor(data.workflowId)?.name ?? data.label }}</strong>
-              <small>项目引用 v{{ bindingFor(data.workflowId)?.version ?? "?" }}</small>
-              <handle type="source" :position="Position.Right" />
-            </div>
-          </template>
-          <template #node-basicNode="{ data }">
-            <div class="basicNode">
-              <handle type="target" :position="Position.Left" />
-              <span>{{ data.label }}</span>
-              <handle type="source" :position="Position.Right" />
-            </div>
+            <canvasNodeCard nodeType="workflowReference" :data="data" :referenceName="bindingFor(data.workflowId)?.name" :referenceVersion="bindingFor(data.workflowId)?.version" />
           </template>
           <background :gap="24" patternColor="#d5d0c5" />
           <mini-map pannable zoomable />
@@ -129,8 +130,9 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from "vue-router";
 import { Background } from "@vue-flow/background";
-import { Handle, Position, VueFlow, useVueFlow, type Connection } from "@vue-flow/core";
+import { VueFlow, useVueFlow, type Connection } from "@vue-flow/core";
 import { MiniMap } from "@vue-flow/minimap";
+import canvasNodeCard from "@/components/canvasNodeCard.vue";
 import { api } from "@/lib/cruioApi";
 import { useCruioSession } from "@/stores/cruioSession";
 import "@vue-flow/core/dist/style.css";
@@ -141,7 +143,7 @@ type CanvasNode = {
   id: string;
   type?: string;
   position: { x: number; y: number };
-  data: { label: string; workflowId?: string };
+  data: { label: string; content?: string; workflowId?: string };
 };
 type CanvasEdge = {
   id: string;
@@ -308,13 +310,13 @@ function closePickerOnEscape(event: KeyboardEvent) {
   nodePickerTrigger.value?.focus();
 }
 
-function addNode() {
+function addContentNode(type: "textNode" | "promptNode") {
   const index = nodes.value.length + 1;
   nodes.value.push({
     id: crypto.randomUUID(),
-    type: "basicNode",
-    position: { x: 140 + (index % 4) * 260, y: 110 + Math.floor(index / 4) * 160 },
-    data: { label: `创作节点 ${index}` },
+    type,
+    position: { x: 100 + (index % 3) * 340, y: 100 + Math.floor(index / 3) * 220 },
+    data: { label: type === "textNode" ? `文本 ${index}` : `提示词 ${index}`, content: "" },
   });
   closeNodePicker();
 }
@@ -326,7 +328,7 @@ function addWorkflowReference(id: string) {
   nodes.value.push({
     id: crypto.randomUUID(),
     type: "workflowReference",
-    position: { x: 140 + (index % 4) * 260, y: 110 + Math.floor(index / 4) * 160 },
+    position: { x: 100 + (index % 3) * 340, y: 100 + Math.floor(index / 3) * 220 },
     data: { label: binding.name, workflowId: binding.id },
   });
   closeNodePicker();
@@ -461,6 +463,7 @@ onBeforeUnmount(() => {
 .nodeChoice strong, .workflowChoices strong { font-size: .79rem; font-weight: 700; }
 .nodeChoice small, .workflowChoices small { margin-top: 3px; color: var(--cr-muted); font-size: .69rem; line-height: 1.4; }
 .choiceMark { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: #655d52; background: #f8f0d9; font-family: Georgia, serif; font-size: .9rem; }
+.choiceMark.promptMark { color: #745a20; background: #fff0c8; }
 .choiceMark.referenceMark { color: #6259cc; background: #eeecff; font-family: inherit; }
 .choiceArrow { color: var(--cr-muted); font-size: .95rem; }
 .pickerFootnote { margin: 14px 4px 2px; color: var(--cr-muted); font-size: .68rem; line-height: 1.5; }
@@ -479,8 +482,12 @@ h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.35r
 .lede { margin: 18px 0 0; }
 .panelRule { height: 1px; margin: 30px 0; background: var(--cr-line); }
 .fieldLabel { display: grid; gap: 8px; font-size: .76rem; font-weight: 680; }
+.contentField { margin-top: 18px; }
 .textInput { width: 100%; padding: 11px 12px; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-ink); background: #fffef9; font: inherit; }
 .textInput:focus { outline: 3px solid rgba(122,115,253,.16); border-color: var(--cr-violet); }
+.textArea { width: 100%; min-height: 148px; padding: 11px 12px; resize: vertical; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-ink); background: #fff; font: inherit; font-size: .78rem; line-height: 1.5; }
+.textArea:focus { outline: 3px solid rgba(122,115,253,.16); border-color: var(--cr-violet); }
+.fieldHint { margin: 10px 0 0; color: var(--cr-muted); font-size: .72rem; line-height: 1.45; }
 .selectionHint span { font-size: .8rem; font-weight: 700; }
 .selectionHint p { margin: 8px 0 0; }
 .referenceDetails { display: grid; gap: 7px; font-size: .84rem; }
@@ -494,14 +501,8 @@ h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.35r
 .canvasEmpty h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.5rem; font-weight: 500; letter-spacing: -.04em; }
 .canvasEmpty p:not(.eyebrow) { margin: 14px 0 22px; color: var(--cr-muted); }
 .canvasEmpty button { pointer-events: auto; }
-:deep(.vue-flow__node) { min-width: 150px; padding: 13px 16px; border: 1px solid #b8b2a7; border-radius: 9px 9px 9px 3px; color: var(--cr-ink); background: #fffef9; box-shadow: 0 10px 30px rgba(72,64,52,.08); }
-:deep(.vue-flow__node.selected) { border-color: var(--cr-violet); box-shadow: 0 0 0 3px rgba(122,115,253,.13); }
-:deep(.vue-flow__node-workflowReference) { border-color: #a9a4e2; background: #f8f7ff; }
-.workflowReferenceNode { min-width: 170px; display: grid; gap: 7px; }
-.workflowReferenceNode > span { color: var(--cr-violet); font-size: .64rem; font-weight: 760; letter-spacing: .08em; }
-.workflowReferenceNode > strong { font-size: .88rem; line-height: 1.3; }
-.workflowReferenceNode > small { color: var(--cr-muted); font-size: .7rem; }
-.basicNode { min-width: 170px; font-size: .85rem; font-weight: 680; line-height: 1.3; }
+:deep(.vue-flow__node) { padding: 0; border: 0; border-radius: 12px; background: transparent; box-shadow: none; }
+:deep(.vue-flow__node.selected .nodeCard) { border-color: var(--cr-violet); box-shadow: 0 0 0 3px rgba(122,115,253,.17), 0 12px 28px rgba(67,71,86,.1); }
 .loadingState { display: grid; place-items: center; color: var(--cr-muted); }
 
 @media (max-width: 760px) {
