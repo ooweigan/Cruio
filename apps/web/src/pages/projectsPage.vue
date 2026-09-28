@@ -5,31 +5,21 @@
     <main v-if="ready" class="projectsMain">
       <section class="pageIntro">
         <div>
-          <p class="eyebrow">创作空间</p>
-          <h1>你的项目</h1>
-          <p>每个项目集中管理成片和工作流。先选项目，再决定要查看成果还是继续编排。</p>
+          <h1>项目</h1>
+          <p>管理成片和工作流，继续最近一次创作。</p>
         </div>
-        <button class="primaryButton" type="button" @click="showCreator = true">新建项目</button>
-      </section>
-
-      <section v-if="showCreator" class="createStrip" aria-labelledby="create-project-heading">
-        <div>
-          <p class="eyebrow">新项目</p>
-          <h2 id="create-project-heading">给这次创作一个名字</h2>
-        </div>
-        <form @submit.prevent="createProject">
-          <input v-model.trim="newProjectName" maxlength="120" aria-label="项目名称" placeholder="例如：秋季品牌短片" autofocus />
-          <button class="primaryButton" type="submit" :disabled="working || !newProjectName">创建并进入</button>
-          <button class="secondaryButton" type="button" @click="cancelCreate">取消</button>
-        </form>
+        <button class="primaryButton" type="button" @click="openCreator">新建项目</button>
       </section>
 
       <section class="projectSection" aria-labelledby="all-projects-heading">
         <div class="sectionHeader">
-          <h2 id="all-projects-heading">全部项目 <span>{{ projects.length }}</span></h2>
+          <div>
+            <h2 id="all-projects-heading">{{ query ? "搜索结果" : "最近的项目" }}</h2>
+            <span>{{ filteredProjects.length }} 个项目</span>
+          </div>
           <label class="searchField">
-            <span>搜索</span>
-            <input v-model.trim="query" type="search" placeholder="输入项目名" />
+            <span class="srOnly">搜索项目</span>
+            <input v-model.trim="query" type="search" placeholder="搜索项目" />
           </label>
         </div>
 
@@ -38,9 +28,9 @@
         </div>
 
         <div v-else-if="filteredProjects.length" class="projectGrid">
-          <article v-for="(project, index) in filteredProjects" :key="project.id" class="projectCard">
+          <article v-for="project in filteredProjects" :key="project.id" class="projectCard">
             <button type="button" @click="openProject(project.id)">
-              <span class="cardIndex">{{ String(index + 1).padStart(2, "0") }}</span>
+              <span class="projectAccent" />
               <span class="cardBody">
                 <span class="projectName">{{ project.name }}</span>
                 <span class="projectMeta">
@@ -49,27 +39,69 @@
               </span>
               <span class="cardFooter">
                 <span>更新于 {{ formatDate(project.updatedAt) }}</span>
-                <span class="openLabel">进入项目</span>
+                <span class="openLabel">打开</span>
               </span>
             </button>
           </article>
         </div>
 
         <div v-else class="emptyState">
-          <p class="eyebrow">{{ query ? "没有匹配结果" : "还没有项目" }}</p>
-          <h2>{{ query ? "换一个关键词试试" : "先建立你的创作容器" }}</h2>
+          <h2>{{ query ? "没有匹配的项目" : "创建第一个项目" }}</h2>
           <p>{{ query ? "项目仍安全保存在列表中。" : "项目里可以整理成片，也可以添加一个或多个工作流。" }}</p>
-          <button v-if="!query" class="primaryButton" type="button" @click="showCreator = true">创建第一个项目</button>
+          <button v-if="!query" class="primaryButton" type="button" @click="openCreator">新建项目</button>
         </div>
       </section>
 
       <p v-if="message" class="errorMessage">{{ message }}</p>
     </main>
+
+    <Teleport to="body">
+      <Transition name="dialog-fade">
+        <div
+          v-if="showCreator"
+          class="dialogBackdrop"
+          role="presentation"
+          @click.self="cancelCreate"
+          @keydown.esc="cancelCreate"
+        >
+          <section
+            class="createDialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-project-heading"
+            aria-describedby="create-project-description"
+          >
+            <div class="dialogMark" aria-hidden="true">+</div>
+            <div class="dialogHeading">
+              <h2 id="create-project-heading">创建新项目</h2>
+              <p id="create-project-description">输入一个名称开始创作，之后仍可修改。</p>
+            </div>
+            <form @submit.prevent="createProject">
+              <label for="new-project-name">项目名称</label>
+              <input
+                id="new-project-name"
+                ref="projectNameInput"
+                v-model.trim="newProjectName"
+                maxlength="120"
+                placeholder="例如：秋季品牌短片"
+                autocomplete="off"
+              />
+              <div class="creatorActions">
+                <button class="textButton" type="button" :disabled="working" @click="cancelCreate">取消</button>
+                <button class="primaryButton" type="submit" :disabled="working || !newProjectName">
+                  {{ working ? "创建中…" : "创建" }}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import CruioHeader from "@/components/cruioHeader.vue";
 import { api } from "@/lib/cruioApi";
@@ -90,6 +122,7 @@ const projects = ref<ProjectSummary[]>([]);
 const query = ref("");
 const newProjectName = ref("");
 const showCreator = ref(false);
+const projectNameInput = ref<HTMLInputElement>();
 const loading = ref(true);
 const working = ref(false);
 const ready = ref(false);
@@ -137,7 +170,14 @@ async function createProject() {
   }
 }
 
+async function openCreator() {
+  showCreator.value = true;
+  await nextTick();
+  projectNameInput.value?.focus();
+}
+
 function cancelCreate() {
+  if (working.value) return;
   showCreator.value = false;
   newProjectName.value = "";
 }
@@ -213,3 +253,4 @@ function formatDate(value: string) {
   .searchField, .searchField input { width: 100%; }
 }
 </style>
+<style scoped lang="scss" src="./projectsPage.redesign.scss"></style>
