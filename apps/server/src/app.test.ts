@@ -61,15 +61,22 @@ describe("CP2 persistence and owner isolation", () => {
       body: JSON.stringify({ name: "A 的持久化项目" }),
     });
     expect(created.status).toBe(201);
-    const { project } = (await created.json()) as { project: { id: string; version: number } };
+    const { project } = (await created.json()) as { project: { id: string } };
+    const createdWorkflow = await fetch(`${baseUrl}/api/projects/${project.id}/workflows`, {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: cookieA },
+      body: JSON.stringify({ name: "A 的工作流" }),
+    });
+    expect(createdWorkflow.status).toBe(201);
+    const { workflow } = (await createdWorkflow.json()) as { workflow: { id: string; version: number } };
     const savedCanvas = {
       nodes: [{ id: "persisted", position: { x: 42, y: 64 }, data: { label: "来自 PostgreSQL" } }],
       edges: [],
     };
-    const saved = await fetch(`${baseUrl}/api/projects/${project.id}/canvas`, {
+    const saved = await fetch(`${baseUrl}/api/projects/${project.id}/workflows/${workflow.id}/canvas`, {
       method: "PUT",
       headers: { "content-type": "application/json", cookie: cookieA },
-      body: JSON.stringify({ canvas: savedCanvas, version: project.version }),
+      body: JSON.stringify({ canvas: savedCanvas, version: workflow.version }),
     });
     expect(saved.status).toBe(200);
 
@@ -77,11 +84,11 @@ describe("CP2 persistence and owner isolation", () => {
     server = await startServer();
     baseUrl = addressFor(server);
 
-    const restored = await fetch(`${baseUrl}/api/projects/${project.id}`, {
+    const restored = await fetch(`${baseUrl}/api/projects/${project.id}/workflows/${workflow.id}`, {
       headers: { cookie: cookieA },
     });
     expect(restored.status).toBe(200);
-    expect(((await restored.json()) as { project: { canvas: Canvas } }).project.canvas).toEqual(savedCanvas);
+    expect(((await restored.json()) as { workflow: { canvas: Canvas } }).workflow.canvas).toEqual(savedCanvas);
 
     const registerB = await fetch(`${baseUrl}/api/auth/register`, {
       method: "POST",
@@ -91,12 +98,12 @@ describe("CP2 persistence and owner isolation", () => {
     expect(registerB.status).toBe(201);
     const cookieB = sessionCookie(registerB);
 
-    const deniedRead = await fetch(`${baseUrl}/api/projects/${project.id}`, {
+    const deniedRead = await fetch(`${baseUrl}/api/projects/${project.id}/workflows/${workflow.id}`, {
       headers: { cookie: cookieB },
     });
     expect(deniedRead.status).toBe(404);
 
-    const deniedWrite = await fetch(`${baseUrl}/api/projects/${project.id}/canvas`, {
+    const deniedWrite = await fetch(`${baseUrl}/api/projects/${project.id}/workflows/${workflow.id}/canvas`, {
       method: "PUT",
       headers: { "content-type": "application/json", cookie: cookieB },
       body: JSON.stringify({ canvas: { nodes: [], edges: [] }, version: 2 }),

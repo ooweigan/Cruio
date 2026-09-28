@@ -156,7 +156,13 @@ export async function createApp(options: { database?: Database } = {}) {
   app.get("/api/projects", async (_request, response) => {
     const user = response.locals.user as AuthenticatedUser;
     const projects = await database`
-      SELECT id, name, version, created_at AS "createdAt", updated_at AS "updatedAt"
+      SELECT
+        projects.id,
+        projects.name,
+        projects.created_at AS "createdAt",
+        projects.updated_at AS "updatedAt",
+        (SELECT count(*)::int FROM workflows WHERE workflows.project_id = projects.id) AS "workflowCount",
+        (SELECT count(*)::int FROM works WHERE works.project_id = projects.id) AS "workCount"
       FROM projects WHERE owner_id = ${user.id} ORDER BY updated_at DESC
     `;
     response.json({ projects });
@@ -169,57 +175,138 @@ export async function createApp(options: { database?: Database } = {}) {
       response.status(400).json({ message: "项目名称需为 1–120 个字符。" });
       return;
     }
-    const canvas: Canvas = validCanvas(request.body?.canvas)
-      ? request.body.canvas
-      : { nodes: [], edges: [] };
     const projects = await database`
-      INSERT INTO projects (id, owner_id, name, canvas)
-      VALUES (${randomUUID()}, ${user.id}, ${name}, ${JSON.stringify(canvas)}::text::jsonb)
-      RETURNING id, name, canvas, version, created_at AS "createdAt", updated_at AS "updatedAt"
+      INSERT INTO projects (id, owner_id, name)
+      VALUES (${randomUUID()}, ${user.id}, ${name})
+      RETURNING id, name, created_at AS "createdAt", updated_at AS "updatedAt"
     `;
-    response.status(201).json({ project: projects[0] });
+    response.status(201).json({ project: { ...projects[0], workflowCount: 0, workCount: 0 } });
   });
 
   app.get("/api/projects/:projectId", async (request, response) => {
     const user = response.locals.user as AuthenticatedUser;
     const projects = await database`
-      SELECT id, name, canvas, version, created_at AS "createdAt", updated_at AS "updatedAt"
+      SELECT id, name, created_at AS "createdAt", updated_at AS "updatedAt"
       FROM projects WHERE id = ${request.params.projectId} AND owner_id = ${user.id}
     `;
     if (!projects[0]) {
       response.status(404).json({ message: "项目不存在。" });
       return;
     }
-    response.json({ project: projects[0] });
+    const workflows = await database`
+      SELECT
+        workflows.id,
+        workflows.name,
+        workflows.version,
+        workflows.created_at AS "createdAt",
+        workflows.updated_at AS "updatedAt",
+        jsonb_array_length(workflows.canvas->'nodes') AS "nodeCount"
+      FROM workflows
+      JOIN projects ON projects.id = workflows.project_id
+      WHERE workflows.project_id = ${request.params.projectId} AND projects.owner_id = ${user.id}
+      ORDER BY workflows.updated_at DESC
+    `;
+    const works = await database`
+      SELECT works.id, works.title, works.media_type AS "mediaType",
+        works.preview_url AS "previewUrl", works.created_at AS "createdAt"
+      FROM works
+      JOIN projects ON projects.id = works.project_id
+      WHERE works.project_id = ${request.params.projectId} AND projects.owner_id = ${user.id}
+      ORDER BY works.created_at DESC
+    `;
+    response.json({ project: { ...projects[0], workflows, works } });
   });
 
-  app.put("/api/projects/:projectId/canvas", async (request, response) => {
+  app.post("/api/projects/:projectId/workflows", async (request, response) => {
+    const user = response.locals.user as AuthenticatedUser;
+    const name = typeof request.body?.name === "string" ? request.body.name.trim() : "";
+    if (!name || name.length > 120) {
+      response.status(400).json({ message: "工作流名称需为 1–120 个字符。" });
+      return;
+    }
+    const canvas: Canvas = validCanvas(request.body?.canvas)
+      ? request.body.canvas
+      : { nodes: [], edges: [] };
+    const workflows = await database`
+      INSERT INTO workflows (id, project_id, name, canvas)
+      SELECT ${randomUUID()}, projects.id, ${name}, ${JSON.stringify(canvas)}::text::jsonb
+      FROM projects
+      WHERE projects.id = ${request.params.projectId} AND projects.owner_id = ${user.id}
+      RETURNING id, name, canvas, version, created_at AS "createdAt", updated_at AS "updatedAt"
+    `;
+    if (!workflows[0]) {
+      response.status(404).json({ message: "项目不存在。" });
+      return;
+    }
+    await database`
+      UPDATE projects SET updated_at = now()
+      WHERE id = ${request.params.projectId} AND owner_id = ${user.id}
+    `;
+    response.status(201).json({ workflow: workflows[0] });
+  });
+
+  app.get("/api/projects/:projectId/workflows/:workflowId", async (request, response) => {
+    const user = response.locals.user as AuthenticatedUser;
+    const workflows = await database`
+      SELECT workflows.id, workflows.project_id AS "projectId", workflows.name,
+        workflows.canvas, workflows.version,
+        workflows.created_at AS "createdAt", workflows.updated_at AS "updatedAt"
+      FROM workflows
+      JOIN projects ON projects.id = workflows.project_id
+      WHERE workflows.id = ${request.params.workflowId}
+        AND workflows.project_id = ${request.params.projectId}
+        AND projects.owner_id = ${user.id}
+    `;
+    if (!workflows[0]) {
+      response.status(404).json({ message: "工作流不存在。" });
+      return;
+    }
+    await database`
+      UPDATE projects SET updated_at = now()
+      WHERE id = ${request.params.projectId} AND owner_id = ${user.id}
+    `;
+    response.json({ workflow: workflows[0] });
+  });
+
+  app.put("/api/projects/:projectId/workflows/:workflowId/canvas", async (request, response) => {
     const user = response.locals.user as AuthenticatedUser;
     const version = request.body?.version;
     if (!validCanvas(request.body?.canvas) || !Number.isInteger(version) || version < 1) {
       response.status(400).json({ message: "画布数据或版本无效。" });
       return;
     }
-    const projects = await database`
-      UPDATE projects
+    const workflows = await database`
+      UPDATE workflows
       SET canvas = ${JSON.stringify(request.body.canvas)}::text::jsonb,
-          version = version + 1,
+          version = workflows.version + 1,
           updated_at = now()
-      WHERE id = ${request.params.projectId} AND owner_id = ${user.id} AND version = ${version}
-      RETURNING id, name, canvas, version, created_at AS "createdAt", updated_at AS "updatedAt"
+      FROM projects
+      WHERE workflows.id = ${request.params.workflowId}
+        AND workflows.project_id = ${request.params.projectId}
+        AND projects.id = workflows.project_id
+        AND projects.owner_id = ${user.id}
+        AND workflows.version = ${version}
+      RETURNING workflows.id, workflows.project_id AS "projectId", workflows.name,
+        workflows.canvas, workflows.version,
+        workflows.created_at AS "createdAt", workflows.updated_at AS "updatedAt"
     `;
-    if (!projects[0]) {
+    if (!workflows[0]) {
       const visible = await database`
-        SELECT version FROM projects WHERE id = ${request.params.projectId} AND owner_id = ${user.id}
+        SELECT workflows.version
+        FROM workflows
+        JOIN projects ON projects.id = workflows.project_id
+        WHERE workflows.id = ${request.params.workflowId}
+          AND workflows.project_id = ${request.params.projectId}
+          AND projects.owner_id = ${user.id}
       `;
       if (visible[0]) {
-        response.status(409).json({ message: "项目已在别处更新，请重新打开。", version: visible[0].version });
+        response.status(409).json({ message: "工作流已在别处更新，请重新打开。", version: visible[0].version });
       } else {
-        response.status(404).json({ message: "项目不存在。" });
+        response.status(404).json({ message: "工作流不存在。" });
       }
       return;
     }
-    response.json({ project: projects[0] });
+    response.json({ workflow: workflows[0] });
   });
 
   app.use((error: Error, _request: Request, response: Response, _next: NextFunction) => {

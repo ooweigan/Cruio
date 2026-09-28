@@ -21,6 +21,11 @@ Open <http://localhost:5173>. The Web app proxies `/api` to the Express server a
 <http://127.0.0.1:3000>. The server also applies pending migrations at startup. Verify
 it with `curl http://127.0.0.1:3000/api/health`.
 
+The signed-in flow is intentionally layered: the projects page is the entry point,
+each project detail page owns its saved works and workflow list, and only opening a
+workflow enters the Vue Flow canvas. Projects, workflows, and canvas documents are
+persisted separately in PostgreSQL.
+
 ## Checks
 
 ```bash
