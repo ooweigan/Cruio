@@ -5,7 +5,7 @@
         <span class="brandMark">C</span><span>CRUIO</span>
       </button>
       <div class="workflowIdentity">
-        <button type="button" @click="backToProject">{{ projectName }}</button>
+        <button type="button" @click="goBack">{{ isProjectCanvas ? "项目" : "工作流库" }}</button>
         <span>/</span>
         <strong>{{ workflow.name }}</strong>
       </div>
@@ -16,11 +16,11 @@
     </header>
 
     <section class="workspace">
-      <aside class="toolPanel" aria-label="工作流与节点属性">
-        <button class="backButton" type="button" @click="backToProject">返回项目</button>
-        <p class="eyebrow">工作流画布</p>
+      <aside class="toolPanel" aria-label="画布与节点属性">
+        <button class="backButton" type="button" @click="goBack">{{ isProjectCanvas ? "返回项目" : "返回工作流库" }}</button>
+        <p class="eyebrow">{{ isProjectCanvas ? "项目画布" : "工作流图" }}</p>
         <h1>{{ workflow.name }}</h1>
-        <p class="lede">在这里编排节点和连接。成片与其他工作流仍保留在项目详情中。</p>
+        <p class="lede">{{ isProjectCanvas ? "在这里整理项目内容。工作流在独立的工作流库中编辑。" : "在这里编排可供多个项目引入的节点和连接。保存后形成新版本。" }}</p>
 
         <div class="panelRule" />
         <template v-if="selectedNode">
@@ -37,7 +37,7 @@
         <p v-if="message" class="errorMessage">{{ message }}</p>
       </aside>
 
-      <div class="canvasPanel" aria-label="Cruio 工作流画布">
+      <div class="canvasPanel" :aria-label="isProjectCanvas ? 'Cruio 项目画布' : 'Cruio 工作流图'">
         <vue-flow
           v-model:nodes="nodes"
           v-model:edges="edges"
@@ -51,7 +51,7 @@
           <background :gap="24" patternColor="#d5d0c5" />
           <mini-map pannable zoomable />
           <div v-if="nodes.length === 0" class="canvasEmpty">
-            <p class="eyebrow">空工作流</p>
+            <p class="eyebrow">{{ isProjectCanvas ? "空项目画布" : "空工作流" }}</p>
             <h2>从第一个节点开始</h2>
             <p>节点类型和模型执行能力将在后续施工中接入。</p>
             <button class="primaryButton" type="button" @click="addNode">添加节点</button>
@@ -60,7 +60,7 @@
       </div>
     </section>
   </main>
-  <main v-else class="loadingState">正在打开工作流…</main>
+  <main v-else class="loadingState">正在打开画布…</main>
 </template>
 
 <script setup lang="ts">
@@ -90,7 +90,6 @@ type CanvasEdge = {
 };
 type Workflow = {
   id: string;
-  projectId: string;
   name: string;
   canvas: { nodes: CanvasNode[]; edges: CanvasEdge[] };
   version: number;
@@ -100,9 +99,9 @@ type Workflow = {
 const route = useRoute();
 const router = useRouter();
 const session = useCruioSession();
-const projectId = String(route.params.projectId);
-const workflowId = String(route.params.workflowId);
-const projectName = ref("项目");
+const isProjectCanvas = route.name === "project-canvas";
+const projectId = String(route.params.projectId ?? "");
+const workflowId = String(route.params.workflowId ?? "");
 const workflow = ref<Workflow | null>(null);
 const nodes = ref<CanvasNode[]>([]);
 const edges = ref<CanvasEdge[]>([]);
@@ -127,23 +126,22 @@ onMounted(async () => {
     return;
   }
   try {
-    const [workflowResult, projectResult] = await Promise.all([
-      api<{ workflow: Workflow }>(`/api/projects/${projectId}/workflows/${workflowId}`),
-      api<{ project: { name: string } }>(`/api/projects/${projectId}`),
-    ]);
-    workflow.value = workflowResult.workflow;
-    projectName.value = projectResult.project.name;
-    nodes.value = workflowResult.workflow.canvas.nodes;
-    edges.value = workflowResult.workflow.canvas.edges;
+    const result = isProjectCanvas
+      ? await api<{ project: Workflow }>(`/api/projects/${projectId}`)
+      : await api<{ workflow: Workflow }>(`/api/workflows/${workflowId}`);
+    const document = "project" in result ? result.project : result.workflow;
+    workflow.value = document;
+    nodes.value = document.canvas.nodes;
+    edges.value = document.canvas.edges;
     window.setTimeout(() => { hydrating = false; }, 250);
   } catch (error) {
-    message.value = error instanceof Error ? error.message : "无法打开工作流。";
-    await router.replace(`/projects/${projectId}`);
+    message.value = error instanceof Error ? error.message : "无法打开画布。";
+    await router.replace(isProjectCanvas ? `/projects/${projectId}` : "/workflows");
   }
 });
 
-function backToProject() {
-  void router.push(`/projects/${projectId}`);
+function goBack() {
+  void router.push(isProjectCanvas ? `/projects/${projectId}` : "/workflows");
 }
 
 function addNode() {
@@ -170,15 +168,16 @@ async function saveCanvas(revision: number) {
   }
   saveState.value = "saving";
   try {
-    const result = await api<{ workflow: Workflow }>(
-      `/api/projects/${projectId}/workflows/${workflowId}/canvas`,
+    const result = await api<{ project: Workflow } | { workflow: Workflow }>(
+      isProjectCanvas ? `/api/projects/${projectId}/canvas` : `/api/workflows/${workflowId}/canvas`,
       {
         method: "PUT",
         body: JSON.stringify({ canvas: { nodes: nodes.value, edges: edges.value }, version: workflow.value.version }),
       },
     );
-    workflow.value.version = result.workflow.version;
-    workflow.value.updatedAt = result.workflow.updatedAt;
+    const saved = "project" in result ? result.project : result.workflow;
+    workflow.value.version = saved.version;
+    workflow.value.updatedAt = saved.updatedAt;
     if (changeRevision > revision) {
       saveState.value = "dirty";
       scheduleSave();

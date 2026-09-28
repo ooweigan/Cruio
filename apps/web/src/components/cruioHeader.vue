@@ -7,6 +7,7 @@
 
     <nav aria-label="主导航">
       <router-link to="/projects">项目</router-link>
+      <router-link to="/workflows">工作流</router-link>
     </nav>
 
     <div class="accountArea">

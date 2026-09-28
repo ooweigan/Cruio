@@ -21,6 +21,15 @@
         </dl>
       </section>
 
+      <section class="projectCanvasEntry" aria-labelledby="projectCanvasHeading">
+        <div>
+          <p class="eyebrow">Canvas</p>
+          <h2 id="projectCanvasHeading">项目画布</h2>
+          <p>整理这个项目的创作内容；工作流图在独立的工作流库中编辑。</p>
+        </div>
+        <button class="primaryButton" type="button" @click="router.push(`/projects/${projectId}/canvas`)">打开项目画布</button>
+      </section>
+
       <section class="contentSection" aria-labelledby="works-heading">
         <div class="sectionHeading">
           <div>
@@ -49,42 +58,53 @@
             <p class="eyebrow">Workflows</p>
             <h2 id="workflows-heading">工作流</h2>
           </div>
-          <button class="primaryButton" type="button" @click="showCreator = true">添加工作流</button>
+          <button class="primaryButton" type="button" @click="showCreator = true">引入工作流</button>
         </div>
 
-        <form v-if="showCreator" class="workflowCreator" @submit.prevent="createWorkflow">
+        <form v-if="showCreator" class="workflowCreator" @submit.prevent="bindWorkflow">
           <div>
-            <p class="eyebrow">新工作流</p>
-            <h3>建立一张独立画布</h3>
-            <p>工作流只保存编排结构；实际生成任务、成片和积分仍是独立事实。</p>
+            <p class="eyebrow">工作流库</p>
+            <h3>引入已有工作流</h3>
+            <p>当前最新版本会固定在本项目。源工作流之后更新，不会自动改动本项目的引用。</p>
           </div>
           <div class="creatorFields">
-            <input v-model.trim="newWorkflowName" maxlength="120" aria-label="工作流名称" placeholder="例如：15 秒主视觉生成" autofocus />
-            <button class="primaryButton" type="submit" :disabled="working || !newWorkflowName">创建并打开</button>
+            <select v-model="selectedWorkflowId" aria-label="选择工作流">
+              <option value="" disabled>选择工作流</option>
+              <option v-for="item in availableWorkflows" :key="item.id" :value="item.id">{{ item.name }} · v{{ item.version }}</option>
+            </select>
+            <button class="primaryButton" type="submit" :disabled="working || !selectedWorkflowId">引入</button>
             <button class="secondaryButton" type="button" @click="cancelCreate">取消</button>
           </div>
+          <router-link to="/workflows">去工作流库新建</router-link>
         </form>
 
         <div v-if="project.workflows.length" class="workflowList">
           <article v-for="(workflow, index) in project.workflows" :key="workflow.id">
-            <button type="button" @click="openWorkflow(workflow.id)">
+            <button class="workflowMainButton" type="button" @click="openWorkflow(workflow.id)">
               <span class="workflowIndex">{{ String(index + 1).padStart(2, "0") }}</span>
               <span class="workflowTitle">
                 <strong>{{ workflow.name }}</strong>
-                <small>{{ workflow.nodeCount }} 个节点 · 版本 {{ workflow.version }}</small>
+                <small>{{ workflow.nodeCount }} 个节点 · 项目引用 v{{ workflow.version }}</small>
               </span>
               <span class="workflowDate">{{ formatDate(workflow.updatedAt) }}</span>
-              <span class="workflowOpen">打开画布</span>
+              <span class="workflowOpen">编辑源工作流</span>
             </button>
+            <button
+              v-if="workflow.latestVersion > workflow.version"
+              class="upgradeButton"
+              type="button"
+              :disabled="working"
+              @click="upgradeWorkflow(workflow.id)"
+            >将项目引用升级到 v{{ workflow.latestVersion }}</button>
           </article>
         </div>
         <div v-else-if="!showCreator" class="workflowEmpty">
           <div>
             <p class="eyebrow">从这里开始</p>
-            <h3>这个项目还没有工作流</h3>
-            <p>添加工作流后，才会进入节点画布进行编排。</p>
+            <h3>这个项目还没有引入工作流</h3>
+            <p>从工作流库选择已有工作流，也可以先创建一个。</p>
           </div>
-          <button class="primaryButton" type="button" @click="showCreator = true">添加第一个工作流</button>
+          <button class="primaryButton" type="button" @click="showCreator = true">引入工作流</button>
         </div>
       </section>
 
@@ -96,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import CruioHeader from "@/components/cruioHeader.vue";
 import { api } from "@/lib/cruioApi";
@@ -106,6 +126,7 @@ type WorkflowSummary = {
   id: string;
   name: string;
   version: number;
+  latestVersion: number;
   nodeCount: number;
   createdAt: string;
   updatedAt: string;
@@ -127,7 +148,11 @@ const project = ref<Project | null>(null);
 const loading = ref(true);
 const working = ref(false);
 const showCreator = ref(false);
-const newWorkflowName = ref("");
+const selectedWorkflowId = ref("");
+const availableWorkflows = computed(() => libraryWorkflows.value.filter(
+  ({ id }) => !project.value?.workflows.some((workflow) => workflow.id === id),
+));
+const libraryWorkflows = ref<WorkflowSummary[]>([]);
 const message = ref("");
 const projectId = String(route.params.projectId);
 
@@ -137,6 +162,11 @@ onMounted(async () => {
     return;
   }
   await loadProject();
+  try {
+    libraryWorkflows.value = (await api<{ workflows: WorkflowSummary[] }>("/api/workflows")).workflows;
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : "无法加载工作流库。";
+  }
 });
 
 async function loadProject() {
@@ -152,17 +182,19 @@ async function loadProject() {
   }
 }
 
-async function createWorkflow() {
+async function bindWorkflow() {
   working.value = true;
   message.value = "";
   try {
-    const result = await api<{ workflow: WorkflowSummary }>(`/api/projects/${projectId}/workflows`, {
+    await api(`/api/projects/${projectId}/workflowBindings`, {
       method: "POST",
-      body: JSON.stringify({ name: newWorkflowName.value }),
+      body: JSON.stringify({ workflowId: selectedWorkflowId.value }),
     });
-    await router.push(`/projects/${projectId}/workflows/${result.workflow.id}`);
+    showCreator.value = false;
+    selectedWorkflowId.value = "";
+    await loadProject();
   } catch (error) {
-    message.value = error instanceof Error ? error.message : "工作流创建失败。";
+    message.value = error instanceof Error ? error.message : "引入工作流失败。";
   } finally {
     working.value = false;
   }
@@ -170,11 +202,24 @@ async function createWorkflow() {
 
 function cancelCreate() {
   showCreator.value = false;
-  newWorkflowName.value = "";
+  selectedWorkflowId.value = "";
 }
 
 async function openWorkflow(workflowId: string) {
-  await router.push(`/projects/${projectId}/workflows/${workflowId}`);
+  await router.push(`/workflows/${workflowId}`);
+}
+
+async function upgradeWorkflow(workflowId: string) {
+  working.value = true;
+  message.value = "";
+  try {
+    await api(`/api/projects/${projectId}/workflowBindings/${workflowId}`, { method: "PUT" });
+    await loadProject();
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : "升级项目引用失败。";
+  } finally {
+    working.value = false;
+  }
 }
 
 function formatDate(value: string) {
@@ -188,6 +233,9 @@ function formatDate(value: string) {
 .breadcrumb { display: flex; gap: 9px; color: var(--cr-muted); font-size: .76rem; }
 .breadcrumb a { color: var(--cr-green); text-decoration: none; }
 .projectHero { margin-top: 54px; padding-bottom: 58px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(420px, .8fr); gap: 50px; align-items: end; border-bottom: 1px solid var(--cr-line); }
+.projectCanvasEntry { margin-top: 38px; padding: 28px 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border: 1px solid var(--cr-line); border-radius: 16px; background: #fff; }
+.projectCanvasEntry h2 { margin: 0; font-size: 1.4rem; }
+.projectCanvasEntry p:last-child { margin: 8px 0 0; color: var(--cr-muted); font-size: .84rem; }
 .eyebrow { margin: 0 0 13px; color: var(--cr-violet); font-size: .68rem; font-weight: 760; letter-spacing: .14em; text-transform: uppercase; }
 .projectHero h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.7rem, 8vw, 7.2rem); font-weight: 500; letter-spacing: -.06em; line-height: .88; text-wrap: balance; }
 dl { margin: 0; display: grid; grid-template-columns: .7fr .8fr 1.5fr; }
@@ -218,11 +266,14 @@ dd { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.5re
 .workflowCreator p:not(.eyebrow), .workflowEmpty p:not(.eyebrow) { max-width: 480px; margin: 12px 0 0; color: #5d5868; line-height: 1.55; }
 .creatorFields { align-self: end; display: grid; grid-template-columns: minmax(160px, 1fr) auto auto; gap: 8px; }
 .creatorFields input { min-width: 0; padding: 11px 13px; border: 1px solid rgba(71,62,89,.2); border-radius: 8px; color: var(--cr-ink); background: rgba(255,255,255,.68); font: inherit; }
+.creatorFields select { min-width: 0; padding: 11px 13px; border: 1px solid rgba(71,62,89,.2); border-radius: 8px; color: var(--cr-ink); background: rgba(255,255,255,.68); font: inherit; }
+.workflowCreator > a { color: var(--cr-violet); font-size: .82rem; }
 .creatorFields input:focus { outline: 3px solid rgba(122,115,253,.18); border-color: var(--cr-violet); }
 .workflowList { margin-top: 28px; border-top: 1px solid var(--cr-line); }
 .workflowList article { border-bottom: 1px solid var(--cr-line); }
-.workflowList button { width: 100%; padding: 22px 4px; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto; gap: 24px; align-items: center; border: 0; color: var(--cr-ink); background: transparent; text-align: left; cursor: pointer; transition: padding .2s, background .2s; }
-.workflowList button:hover { padding-left: 14px; padding-right: 14px; background: rgba(255,255,255,.6); }
+.workflowList .workflowMainButton { width: 100%; padding: 22px 4px; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto; gap: 24px; align-items: center; border: 0; color: var(--cr-ink); background: transparent; text-align: left; cursor: pointer; transition: padding .2s, background .2s; }
+.workflowList .workflowMainButton:hover { padding-left: 14px; padding-right: 14px; background: rgba(255,255,255,.6); }
+.workflowList .upgradeButton { margin: 0 0 18px 58px; padding: 9px 13px; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-violet); background: #fff; font: inherit; font-size: .76rem; font-weight: 680; cursor: pointer; }
 .workflowIndex { color: #9b968c; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .68rem; }
 .workflowTitle { display: grid; gap: 7px; }
 .workflowTitle strong { font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 500; }
@@ -234,6 +285,7 @@ dd { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.5re
 
 @media (max-width: 900px) {
   .projectHero, .sectionHeading, .workflowCreator { grid-template-columns: 1fr; }
+  .projectCanvasEntry { align-items: flex-start; flex-direction: column; }
   .sectionHeading > p, .sectionHeading > .primaryButton { justify-self: start; }
   .creatorFields { grid-template-columns: 1fr 1fr; }
   .creatorFields input { grid-column: 1 / -1; }

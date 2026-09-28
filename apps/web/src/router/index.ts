@@ -6,15 +6,21 @@ const router = createRouter({
     { path: "/", redirect: "/projects" },
     { path: "/login", name: "login", component: () => import("@/pages/loginPage.vue") },
     { path: "/projects", name: "projects", component: () => import("@/pages/projectsPage.vue") },
+    { path: "/workflows", name: "workflows", component: () => import("@/pages/workflowsPage.vue") },
+    { path: "/workflows/:workflowId", name: "workflow-canvas", component: () => import("@/pages/cruioCanvas.vue") },
     {
       path: "/projects/:projectId",
       name: "project-detail",
       component: () => import("@/pages/projectDetailPage.vue"),
     },
     {
-      path: "/projects/:projectId/workflows/:workflowId",
-      name: "workflow-canvas",
+      path: "/projects/:projectId/canvas",
+      name: "project-canvas",
       component: () => import("@/pages/cruioCanvas.vue"),
+    },
+    {
+      path: "/projects/:projectId/workflows/:workflowId",
+      redirect: (to) => `/workflows/${to.params.workflowId}`,
     },
     { path: "/:pathMatch(.*)*", redirect: "/projects" },
   ],

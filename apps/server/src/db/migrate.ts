@@ -61,6 +61,52 @@ const migrations = [
         ON works(project_id, created_at DESC)`,
     ],
   },
+  {
+    version: 3,
+    name: "independent_workflows_and_project_bindings",
+    statements: [
+      `ALTER TABLE workflows ADD COLUMN IF NOT EXISTS owner_id uuid`,
+      `UPDATE workflows SET owner_id = projects.owner_id
+        FROM projects WHERE workflows.project_id = projects.id AND workflows.owner_id IS NULL`,
+      `ALTER TABLE workflows ALTER COLUMN owner_id SET NOT NULL`,
+      `ALTER TABLE workflows ADD CONSTRAINT workflows_owner_id_fkey
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE`,
+      `CREATE INDEX IF NOT EXISTS workflows_owner_updated_idx
+        ON workflows(owner_id, updated_at DESC)`,
+      `CREATE TABLE IF NOT EXISTS workflow_versions (
+        workflow_id uuid NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+        version integer NOT NULL CHECK (version > 0),
+        canvas jsonb NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (workflow_id, version)
+      )`,
+      `INSERT INTO workflow_versions (workflow_id, version, canvas, created_at)
+        SELECT id, version, canvas, updated_at FROM workflows
+        ON CONFLICT (workflow_id, version) DO NOTHING`,
+      `CREATE TABLE IF NOT EXISTS project_workflow_bindings (
+        project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        workflow_id uuid NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+        workflow_version integer NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (project_id, workflow_id),
+        FOREIGN KEY (workflow_id, workflow_version)
+          REFERENCES workflow_versions(workflow_id, version)
+      )`,
+      `INSERT INTO project_workflow_bindings (project_id, workflow_id, workflow_version, created_at)
+        SELECT project_id, id, version, created_at FROM workflows
+        ON CONFLICT (project_id, workflow_id) DO NOTHING`,
+      `ALTER TABLE workflows DROP COLUMN project_id`,
+    ],
+  },
+  {
+    version: 4,
+    name: "workflow_owner_delete_cascade",
+    statements: [
+      `ALTER TABLE workflows DROP CONSTRAINT workflows_owner_id_fkey`,
+      `ALTER TABLE workflows ADD CONSTRAINT workflows_owner_id_fkey
+        FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE`,
+    ],
+  },
 ] as const;
 
 export async function migrate(database: Database) {

@@ -5,7 +5,7 @@
         <p class="brand">CRUIO</p>
         <p class="eyebrow">视觉创作工作台</p>
         <h1 id="login-heading">从一个项目开始，<br />把想法变成成片。</h1>
-        <p class="introCopy">项目收拢成片与工作流。需要编排时，再进入专注的节点画布。</p>
+        <p class="introCopy">项目整理创作与成片，工作流独立编排，并可引入多个项目。</p>
       </div>
       <p class="buildNote">V1 本地开发环境 · 数据保存至 Cruio PostgreSQL</p>
     </section>
@@ -13,8 +13,8 @@
     <section class="loginPanel">
       <div class="loginCard">
         <p class="stepLabel">{{ authMode === "login" ? "欢迎回来" : "创建本地账户" }}</p>
-        <h2>{{ authMode === "login" ? "进入你的项目" : "开始第一个项目" }}</h2>
-        <p class="helper">{{ authMode === "login" ? "登录后先选择项目，再进入工作流。" : "只用于当前本地开发环境。" }}</p>
+        <h2>{{ authMode === "login" ? "进入创作空间" : "开始创作" }}</h2>
+        <p class="helper">{{ authMode === "login" ? "登录后可打开项目或工作流库。" : "只用于当前本地开发环境。" }}</p>
 
         <form @submit.prevent="submitAuth">
           <label>
