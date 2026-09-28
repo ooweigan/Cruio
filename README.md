@@ -22,9 +22,14 @@ Open <http://localhost:5173>. The Web app proxies `/api` to the Express server a
 it with `curl http://127.0.0.1:3000/api/health`.
 
 The signed-in flow is intentionally layered: the projects page is the entry point,
-each project detail page owns its saved works and workflow list, and only opening a
-workflow enters the Vue Flow canvas. Projects, workflows, and canvas documents are
-persisted separately in PostgreSQL.
+each project detail page shows its saved works and bound workflows, and the project
+canvas is separate from a workflow's source graph. Create a workflow in the workflow
+library, bind it from a project detail page, then place its version-pinned reference
+on that project's canvas. Nodes can be selected, dragged, connected, and removed;
+ordinary nodes can also be renamed. Changes auto-save to PostgreSQL. Selecting a node
+or edge alone does not create a new saved version. A project-canvas reference is layout
+only: removing it does not remove the binding or source workflow. Model execution is
+not connected yet.
 
 ## Checks
 

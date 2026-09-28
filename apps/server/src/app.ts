@@ -59,6 +59,17 @@ function validId(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+function workflowReferences(canvas: Canvas) {
+  const ids = new Set<string>();
+  for (const node of canvas.nodes) {
+    if (!node || typeof node !== "object" || (node as { type?: unknown }).type !== "workflowReference") continue;
+    const workflowId = (node as { data?: { workflowId?: unknown } }).data?.workflowId;
+    if (!validId(workflowId)) return null;
+    ids.add(workflowId);
+  }
+  return [...ids];
+}
+
 async function createSession(database: Database, userId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + sessionLifetimeMs);
@@ -236,6 +247,35 @@ export async function createApp(options: { database?: Database } = {}) {
     if (!validId(request.params.projectId) || !validCanvas(request.body?.canvas) || !Number.isInteger(version) || version < 1) {
       response.status(400).json({ message: "画布数据或版本无效。" });
       return;
+    }
+    const owned = await database`
+      SELECT 1 FROM projects WHERE id = ${request.params.projectId} AND owner_id = ${user.id}
+    `;
+    if (!owned[0]) {
+      response.status(404).json({ message: "项目不存在。" });
+      return;
+    }
+    const references = workflowReferences(request.body.canvas);
+    if (!references) {
+      response.status(400).json({ message: "工作流引用无效。" });
+      return;
+    }
+    if (references.length) {
+      const allowed = await database`
+        SELECT count(*)::int AS count
+        FROM project_workflow_bindings
+        JOIN projects ON projects.id = project_workflow_bindings.project_id
+        JOIN workflows ON workflows.id = project_workflow_bindings.workflow_id
+        WHERE projects.id = ${request.params.projectId} AND projects.owner_id = ${user.id}
+          AND workflows.owner_id = ${user.id}
+          AND project_workflow_bindings.workflow_id IN (
+            SELECT value::uuid FROM jsonb_array_elements_text(${JSON.stringify(references)}::text::jsonb)
+          )
+      `;
+      if (allowed[0]?.count !== references.length) {
+        response.status(400).json({ message: "画布只能引用当前项目已引入的工作流。" });
+        return;
+      }
     }
     const projects = await database`
       UPDATE projects SET canvas = ${JSON.stringify(request.body.canvas)}::text::jsonb,

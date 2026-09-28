@@ -11,6 +11,7 @@
       </div>
       <div class="canvasActions">
         <span class="saveStatus" :class="saveState">{{ saveLabel }}</span>
+        <button v-if="saveState === 'error'" class="textButton" type="button" @click="saveCanvas(changeRevision)">重试保存</button>
         <button class="primaryButton" type="button" @click="addNode">添加节点</button>
       </div>
     </header>
@@ -22,13 +23,36 @@
         <h1>{{ workflow.name }}</h1>
         <p class="lede">{{ isProjectCanvas ? "在这里整理项目内容。工作流在独立的工作流库中编辑。" : "在这里编排可供多个项目引入的节点和连接。保存后形成新版本。" }}</p>
 
+        <div v-if="isProjectCanvas" class="referencePicker">
+          <label for="workflowReference">已引入的工作流</label>
+          <div v-if="bindings.length" class="referenceActions">
+            <select id="workflowReference" v-model="selectedWorkflowId">
+              <option value="" disabled>选择工作流</option>
+              <option v-for="binding in bindings" :key="binding.id" :value="binding.id">{{ binding.name }} · v{{ binding.version }}</option>
+            </select>
+            <button class="secondaryButton" type="button" :disabled="!selectedWorkflowId" @click="addWorkflowReference">放入画布</button>
+          </div>
+          <p v-else>先在项目详情引入工作流，再把它放入画布。</p>
+        </div>
+
         <div class="panelRule" />
         <template v-if="selectedNode">
           <p class="eyebrow">节点属性</p>
-          <label class="fieldLabel">
+          <div v-if="selectedNode.type === 'workflowReference'" class="referenceDetails">
+            <strong>{{ bindingFor(selectedNode.data.workflowId)?.name ?? selectedNode.data.label }}</strong>
+            <span>项目引用 v{{ bindingFor(selectedNode.data.workflowId)?.version ?? "?" }}</span>
+            <button v-if="bindingFor(selectedNode.data.workflowId)" class="linkButton" type="button" @click="openSourceWorkflow(selectedNode.data.workflowId)">编辑源工作流</button>
+          </div>
+          <label v-else class="fieldLabel">
             节点标题
             <input v-model="selectedNode.data.label" class="textInput" aria-label="节点标题" />
           </label>
+          <button class="dangerButton" type="button" @click="removeSelectedNode">移除节点</button>
+        </template>
+        <template v-else-if="selectedEdgeId">
+          <p class="eyebrow">连接</p>
+          <p class="selectionHint">已选中一条连接。</p>
+          <button class="dangerButton" type="button" @click="removeSelectedEdge">移除连接</button>
         </template>
         <div v-else class="selectionHint">
           <span>未选择节点</span>
@@ -41,13 +65,30 @@
         <vue-flow
           v-model:nodes="nodes"
           v-model:edges="edges"
-          :fitViewOnInit="true"
           :minZoom="0.25"
           :maxZoom="2"
           @connect="onConnect"
+          @nodesInitialized="frameCanvas"
           @nodeClick="onNodeClick"
-          @paneClick="selectedNodeId = null"
+          @edgeClick="onEdgeClick"
+          @paneClick="clearSelection"
         >
+          <template #node-workflowReference="{ data }">
+            <div class="workflowReferenceNode">
+              <handle type="target" :position="Position.Left" />
+              <span>工作流引用</span>
+              <strong>{{ bindingFor(data.workflowId)?.name ?? data.label }}</strong>
+              <small>项目引用 v{{ bindingFor(data.workflowId)?.version ?? "?" }}</small>
+              <handle type="source" :position="Position.Right" />
+            </div>
+          </template>
+          <template #node-basicNode="{ data }">
+            <div class="basicNode">
+              <handle type="target" :position="Position.Left" />
+              <span>{{ data.label }}</span>
+              <handle type="source" :position="Position.Right" />
+            </div>
+          </template>
           <background :gap="24" patternColor="#d5d0c5" />
           <mini-map pannable zoomable />
           <div v-if="nodes.length === 0" class="canvasEmpty">
@@ -64,10 +105,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Background } from "@vue-flow/background";
-import { VueFlow, type Connection } from "@vue-flow/core";
+import { Handle, Position, VueFlow, useVueFlow, type Connection } from "@vue-flow/core";
 import { MiniMap } from "@vue-flow/minimap";
 import { api } from "@/lib/cruioApi";
 import { useCruioSession } from "@/stores/cruioSession";
@@ -79,7 +120,7 @@ type CanvasNode = {
   id: string;
   type?: string;
   position: { x: number; y: number };
-  data: { label: string };
+  data: { label: string; workflowId?: string };
 };
 type CanvasEdge = {
   id: string;
@@ -95,17 +136,22 @@ type Workflow = {
   version: number;
   updatedAt: string;
 };
+type WorkflowBinding = { id: string; name: string; version: number };
 
 const route = useRoute();
 const router = useRouter();
 const session = useCruioSession();
+const { fitView } = useVueFlow();
 const isProjectCanvas = route.name === "project-canvas";
 const projectId = String(route.params.projectId ?? "");
 const workflowId = String(route.params.workflowId ?? "");
 const workflow = ref<Workflow | null>(null);
+const bindings = ref<WorkflowBinding[]>([]);
+const selectedWorkflowId = ref("");
 const nodes = ref<CanvasNode[]>([]);
 const edges = ref<CanvasEdge[]>([]);
 const selectedNodeId = ref<string | null>(null);
+const selectedEdgeId = ref<string | null>(null);
 const message = ref("");
 const saveState = ref<"saved" | "saving" | "dirty" | "error">("saved");
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -113,6 +159,21 @@ let hydrating = true;
 let changeRevision = 0;
 
 const selectedNode = computed(() => nodes.value.find((node) => node.id === selectedNodeId.value));
+const canvasSnapshot = computed(() => JSON.stringify({
+  nodes: nodes.value.map((node) => ({
+    id: node.id,
+    ...(node.type ? { type: node.type } : {}),
+    position: node.position,
+    data: node.data,
+  })),
+  edges: edges.value.map((edge) => ({
+    id: edge.id,
+    source: edge.source,
+    target: edge.target,
+    ...(edge.sourceHandle ? { sourceHandle: edge.sourceHandle } : {}),
+    ...(edge.targetHandle ? { targetHandle: edge.targetHandle } : {}),
+  })),
+}));
 const saveLabel = computed(() => ({
   saved: "已保存",
   saving: "正在保存…",
@@ -127,9 +188,10 @@ onMounted(async () => {
   }
   try {
     const result = isProjectCanvas
-      ? await api<{ project: Workflow }>(`/api/projects/${projectId}`)
+      ? await api<{ project: Workflow & { workflows: WorkflowBinding[] } }>(`/api/projects/${projectId}`)
       : await api<{ workflow: Workflow }>(`/api/workflows/${workflowId}`);
     const document = "project" in result ? result.project : result.workflow;
+    bindings.value = "project" in result ? result.project.workflows : [];
     workflow.value = document;
     nodes.value = document.canvas.nodes;
     edges.value = document.canvas.edges;
@@ -144,21 +206,74 @@ function goBack() {
   void router.push(isProjectCanvas ? `/projects/${projectId}` : "/workflows");
 }
 
+function frameCanvas() {
+  void nextTick().then(() => fitView({ padding: 0.2, maxZoom: 1 }));
+}
+
 function addNode() {
   const index = nodes.value.length + 1;
   nodes.value.push({
     id: crypto.randomUUID(),
-    position: { x: 140 + (index % 4) * 180, y: 110 + Math.floor(index / 4) * 140 },
+    type: "basicNode",
+    position: { x: 140 + (index % 4) * 260, y: 110 + Math.floor(index / 4) * 160 },
     data: { label: `创作节点 ${index}` },
   });
 }
 
+function addWorkflowReference() {
+  const binding = bindingFor(selectedWorkflowId.value);
+  if (!binding) return;
+  const index = nodes.value.length + 1;
+  nodes.value.push({
+    id: crypto.randomUUID(),
+    type: "workflowReference",
+    position: { x: 140 + (index % 4) * 260, y: 110 + Math.floor(index / 4) * 160 },
+    data: { label: binding.name, workflowId: binding.id },
+  });
+  selectedWorkflowId.value = "";
+}
+
+function bindingFor(id?: string) {
+  return bindings.value.find((binding) => binding.id === id);
+}
+
+function openSourceWorkflow(id?: string) {
+  if (id && bindingFor(id)) void router.push(`/workflows/${id}`);
+}
+
 function onConnect(connection: Connection) {
+  if (!connection.source || !connection.target || connection.source === connection.target) return;
+  if (edges.value.some((edge) => edge.source === connection.source && edge.target === connection.target &&
+    edge.sourceHandle === connection.sourceHandle && edge.targetHandle === connection.targetHandle)) return;
   edges.value.push({ id: crypto.randomUUID(), ...connection });
 }
 
 function onNodeClick(event: { node: { id: string } }) {
   selectedNodeId.value = event.node.id;
+  selectedEdgeId.value = null;
+}
+
+function onEdgeClick(event: { edge: { id: string } }) {
+  selectedEdgeId.value = event.edge.id;
+  selectedNodeId.value = null;
+}
+
+function clearSelection() {
+  selectedNodeId.value = null;
+  selectedEdgeId.value = null;
+}
+
+function removeSelectedNode() {
+  const id = selectedNodeId.value;
+  if (!id) return;
+  nodes.value = nodes.value.filter((node) => node.id !== id);
+  edges.value = edges.value.filter((edge) => edge.source !== id && edge.target !== id);
+  clearSelection();
+}
+
+function removeSelectedEdge() {
+  edges.value = edges.value.filter((edge) => edge.id !== selectedEdgeId.value);
+  clearSelection();
 }
 
 async function saveCanvas(revision: number) {
@@ -172,7 +287,7 @@ async function saveCanvas(revision: number) {
       isProjectCanvas ? `/api/projects/${projectId}/canvas` : `/api/workflows/${workflowId}/canvas`,
       {
         method: "PUT",
-        body: JSON.stringify({ canvas: { nodes: nodes.value, edges: edges.value }, version: workflow.value.version }),
+        body: JSON.stringify({ canvas: JSON.parse(canvasSnapshot.value), version: workflow.value.version }),
       },
     );
     const saved = "project" in result ? result.project : result.workflow;
@@ -197,14 +312,13 @@ function scheduleSave() {
 }
 
 watch(
-  [nodes, edges],
+  canvasSnapshot,
   () => {
     if (hydrating || !workflow.value) return;
     changeRevision += 1;
     saveState.value = "dirty";
     scheduleSave();
   },
-  { deep: true },
 );
 
 onBeforeUnmount(() => {
@@ -224,6 +338,7 @@ onBeforeUnmount(() => {
 .saveStatus { color: var(--cr-muted); font-size: .72rem; }
 .saveStatus.saved { color: #4d6755; }
 .saveStatus.error { color: var(--cr-danger); }
+.textButton { padding: 6px 0; border: 0; color: var(--cr-violet); background: transparent; font: inherit; font-size: .76rem; font-weight: 680; cursor: pointer; }
 .primaryButton { padding: 10px 15px; border: 0; border-radius: 8px; color: #28222f; background: var(--cr-gradient); font: inherit; font-size: .78rem; font-weight: 730; cursor: pointer; transition: transform .2s, filter .2s; }
 .primaryButton:hover { filter: saturate(1.08) brightness(.98); transform: translateY(-1px); }
 .primaryButton:active { transform: translateY(1px); }
@@ -234,12 +349,25 @@ onBeforeUnmount(() => {
 h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.35rem; font-weight: 500; letter-spacing: -.04em; line-height: .98; }
 .lede, .selectionHint p { color: var(--cr-muted); font-size: .84rem; line-height: 1.65; }
 .lede { margin: 18px 0 0; }
+.referencePicker {
+  margin-top: 26px;
+  label { display: block; margin-bottom: 9px; font-size: .76rem; font-weight: 680; }
+  p { margin: 0; color: var(--cr-muted); font-size: .78rem; line-height: 1.55; }
+  .referenceActions { display: grid; gap: 9px; }
+  select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--cr-line); border-radius: 9px; background: #fff; font: inherit; font-size: .78rem; }
+}
+.secondaryButton { justify-self: start; padding: 9px 13px; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-ink); background: #fff; font: inherit; font-size: .76rem; font-weight: 680; cursor: pointer; }
+.secondaryButton:disabled { opacity: .48; cursor: default; }
 .panelRule { height: 1px; margin: 30px 0; background: var(--cr-line); }
 .fieldLabel { display: grid; gap: 8px; font-size: .76rem; font-weight: 680; }
 .textInput { width: 100%; padding: 11px 12px; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-ink); background: #fffef9; font: inherit; }
 .textInput:focus { outline: 3px solid rgba(122,115,253,.16); border-color: var(--cr-violet); }
 .selectionHint span { font-size: .8rem; font-weight: 700; }
 .selectionHint p { margin: 8px 0 0; }
+.referenceDetails { display: grid; gap: 7px; font-size: .84rem; }
+.referenceDetails span { color: var(--cr-muted); font-size: .75rem; }
+.linkButton { justify-self: start; padding: 7px 0; border: 0; color: var(--cr-violet); background: transparent; font: inherit; font-size: .76rem; font-weight: 680; cursor: pointer; }
+.dangerButton { margin-top: 20px; padding: 8px 11px; border: 1px solid #d9b9b6; border-radius: 8px; color: var(--cr-danger); background: transparent; font: inherit; font-size: .76rem; font-weight: 680; cursor: pointer; }
 .errorMessage { color: var(--cr-danger); font-size: .8rem; line-height: 1.5; }
 .canvasPanel { min-width: 0; background: #f4f2ec; }
 .vue-flow { height: 100%; }
@@ -249,6 +377,12 @@ h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.35r
 .canvasEmpty button { pointer-events: auto; }
 :deep(.vue-flow__node) { min-width: 150px; padding: 13px 16px; border: 1px solid #b8b2a7; border-radius: 9px 9px 9px 3px; color: var(--cr-ink); background: #fffef9; box-shadow: 0 10px 30px rgba(72,64,52,.08); }
 :deep(.vue-flow__node.selected) { border-color: var(--cr-violet); box-shadow: 0 0 0 3px rgba(122,115,253,.13); }
+:deep(.vue-flow__node-workflowReference) { border-color: #a9a4e2; background: #f8f7ff; }
+.workflowReferenceNode { min-width: 170px; display: grid; gap: 7px; }
+.workflowReferenceNode > span { color: var(--cr-violet); font-size: .64rem; font-weight: 760; letter-spacing: .08em; }
+.workflowReferenceNode > strong { font-size: .88rem; line-height: 1.3; }
+.workflowReferenceNode > small { color: var(--cr-muted); font-size: .7rem; }
+.basicNode { min-width: 170px; font-size: .85rem; font-weight: 680; line-height: 1.3; }
 .loadingState { display: grid; place-items: center; color: var(--cr-muted); }
 
 @media (max-width: 760px) {
