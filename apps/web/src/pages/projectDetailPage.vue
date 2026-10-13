@@ -1,6 +1,6 @@
 <template>
   <div class="pageShell">
-    <cruio-header />
+    <cruioHeader />
 
     <main v-if="project" class="projectMain">
       <nav class="breadcrumb" aria-label="面包屑">
@@ -30,6 +30,34 @@
         <button class="primaryButton" type="button" @click="router.push(`/projects/${projectId}/canvas`)">打开项目画布</button>
       </section>
 
+      <section v-if="tasks.length || loadingTasks || taskMessage || tasksLoaded" class="contentSection taskSection" aria-labelledby="tasksHeading">
+        <div class="sectionHeading">
+          <div><p class="eyebrow">Runs</p><h2 id="tasksHeading">生成任务</h2></div>
+          <button class="secondaryButton" type="button" :disabled="loadingTasks" @click="loadTasks">{{ loadingTasks ? "正在刷新…" : "刷新任务" }}</button>
+        </div>
+        <article v-for="task in tasks" :key="task.taskId" class="projectTask">
+          <div class="projectTaskHeading">
+            <strong>{{ task.modelSnapshot?.label ?? task.modelSnapshot?.modelId ?? task.operation }}</strong>
+            <span>{{ taskStatusLabel(task.status) }}</span>
+          </div>
+          <p>{{ formatDate(task.createdAt) }} · {{ task.taskId }}</p>
+          <div v-for="result in task.results ?? []" :key="result.resultId" class="projectTaskResult">
+            <img v-if="result.mediaType === 'image'" :src="result.previewUrl" alt="生成结果" />
+            <video v-else-if="result.mediaType === 'video'" :src="result.previewUrl" controls aria-label="生成结果" />
+            <a :href="result.downloadUrl" download>下载结果</a>
+            <span v-if="result.saved || savedResults.has(result.resultId)">已保存为作品</span>
+            <template v-else-if="task.status === 'delivered'">
+              <input v-model="workTitles[result.resultId]" class="workTitleInput" maxlength="160" :placeholder="project.name" :aria-label="`作品名称：${project.name}`" />
+              <button class="secondaryButton" type="button" :disabled="savingTaskId === task.taskId" @click="saveWork(task, result.resultId)">{{ savingTaskId === task.taskId ? "正在保存…" : "保存为作品" }}</button>
+            </template>
+          </div>
+          <p v-if="task.failure" class="errorMessage">{{ task.failure }}</p>
+        </article>
+        <p v-if="loadingTasks" class="taskNotice">正在读取项目任务…</p>
+        <p v-else-if="tasksLoaded && !taskMessage && !tasks.length" class="taskNotice">当前项目暂无生成任务。</p>
+        <p v-if="taskMessage" class="errorMessage">{{ taskMessage }}</p>
+      </section>
+
       <section class="contentSection" aria-labelledby="works-heading">
         <div class="sectionHeading">
           <div>
@@ -44,12 +72,17 @@
             <img v-if="work.mediaType === 'image'" :src="work.previewUrl" :alt="work.title" />
             <video v-else :src="work.previewUrl" controls :aria-label="work.title" />
             <div><h3>{{ work.title }}</h3><p>{{ formatDate(work.createdAt) }}</p></div>
+            <div class="workActions">
+              <a class="secondaryButton" :href="`/api/works/${encodeURIComponent(work.id)}/download`" download>下载作品</a>
+              <button class="secondaryButton" type="button" :disabled="deletingWorkId === work.id" @click="deleteWork(work)">{{ deletingWorkId === work.id ? "正在删除…" : "删除作品" }}</button>
+            </div>
           </article>
         </div>
         <div v-else class="worksEmpty">
           <span>暂无成片</span>
           <p>生成结果不会自动成为作品。之后由你选择值得长期保存的版本。</p>
         </div>
+        <p v-if="workMessage" class="errorMessage">{{ workMessage }}</p>
       </section>
 
       <section class="contentSection workflowSection" aria-labelledby="workflows-heading">
@@ -118,7 +151,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import CruioHeader from "@/components/cruioHeader.vue";
+import cruioHeader from "@/components/cruioHeader.vue";
 import { api } from "@/lib/cruioApi";
 import { useCruioSession } from "@/stores/cruioSession";
 
@@ -140,6 +173,8 @@ type Project = {
   workflows: WorkflowSummary[];
   works: Work[];
 };
+type GenerationResult = { resultId: string; mediaType: "image" | "video"; previewUrl: string; downloadUrl: string; saved?: boolean };
+type GenerationTask = { taskId: string; nodeId?: string; status: string; operation: string; createdAt: string; modelSnapshot?: { modelId?: string; label?: string }; results?: GenerationResult[]; failure?: string };
 
 const route = useRoute();
 const router = useRouter();
@@ -154,6 +189,15 @@ const availableWorkflows = computed(() => libraryWorkflows.value.filter(
 ));
 const libraryWorkflows = ref<WorkflowSummary[]>([]);
 const message = ref("");
+const tasks = ref<GenerationTask[]>([]);
+const loadingTasks = ref(false);
+const savingTaskId = ref("");
+const taskMessage = ref("");
+const savedResults = ref(new Set<string>());
+const workTitles = ref<Record<string, string>>({});
+const tasksLoaded = ref(false);
+const deletingWorkId = ref("");
+const workMessage = ref("");
 const projectId = String(route.params.projectId);
 
 onMounted(async () => {
@@ -162,12 +206,63 @@ onMounted(async () => {
     return;
   }
   await loadProject();
+  await Promise.all([loadTasks(), loadWorkflowLibrary()]);
+});
+
+async function loadWorkflowLibrary() {
   try {
     libraryWorkflows.value = (await api<{ workflows: WorkflowSummary[] }>("/api/workflows")).workflows;
   } catch (error) {
     message.value = error instanceof Error ? error.message : "无法加载工作流库。";
   }
-});
+}
+
+async function loadTasks() {
+  loadingTasks.value = true;
+  taskMessage.value = "";
+  try {
+    tasks.value = (await api<{ tasks: GenerationTask[] }>(`/api/generation/tasks?projectId=${encodeURIComponent(projectId)}`)).tasks;
+    tasksLoaded.value = true;
+  } catch (error) {
+    taskMessage.value = error instanceof Error ? error.message : "无法读取生成任务。";
+  } finally {
+    loadingTasks.value = false;
+  }
+}
+
+async function saveWork(task: GenerationTask, resultId: string) {
+  if (task.status !== "delivered") return;
+  savingTaskId.value = task.taskId;
+  taskMessage.value = "";
+  try {
+    const title = workTitles.value[resultId]?.trim() || project.value?.name || "我的作品";
+    await api("/api/works", { method: "POST", body: JSON.stringify({ taskId: task.taskId, resultIds: [resultId], title }) });
+    savedResults.value = new Set(savedResults.value).add(resultId);
+    await Promise.all([loadProject(), loadTasks()]);
+  } catch (error) {
+    taskMessage.value = error instanceof Error ? error.message : "作品保存失败。";
+  } finally {
+    savingTaskId.value = "";
+  }
+}
+
+async function deleteWork(work: Work) {
+  if (deletingWorkId.value) return;
+  deletingWorkId.value = work.id;
+  workMessage.value = "";
+  try {
+    await api(`/api/works/${encodeURIComponent(work.id)}`, { method: "DELETE" });
+    if (project.value) project.value = { ...project.value, works: project.value.works.filter(item => item.id !== work.id) };
+  } catch (error) {
+    workMessage.value = error instanceof Error ? error.message : "作品删除失败。";
+  } finally {
+    deletingWorkId.value = "";
+  }
+}
+
+function taskStatusLabel(status: string) {
+  return ({ queued: "排队中", running: "生成中", succeeded: "正在保存结果", delivered: "结果可用", failed: "生成失败", unknown: "状态待核查" } as Record<string, string>)[status] ?? "处理中";
+}
 
 async function loadProject() {
   loading.value = true;
@@ -228,77 +323,111 @@ function formatDate(value: string) {
 </script>
 
 <style scoped lang="scss">
-.pageShell { min-height: 100dvh; color: var(--cr-ink); background: var(--cr-paper); }
-.projectMain { width: min(100% - 40px, 1320px); margin: 0 auto; padding: 30px 0 120px; }
-.breadcrumb { display: flex; gap: 9px; color: var(--cr-muted); font-size: .76rem; }
-.breadcrumb a { color: var(--cr-green); text-decoration: none; }
-.projectHero { margin-top: 54px; padding-bottom: 58px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(420px, .8fr); gap: 50px; align-items: end; border-bottom: 1px solid var(--cr-line); }
-.projectCanvasEntry { margin-top: 38px; padding: 28px 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border: 1px solid var(--cr-line); border-radius: 16px; background: #fff; }
-.projectCanvasEntry h2 { margin: 0; font-size: 1.4rem; }
-.projectCanvasEntry p:last-child { margin: 8px 0 0; color: var(--cr-muted); font-size: .84rem; }
-.eyebrow { margin: 0 0 13px; color: var(--cr-violet); font-size: .68rem; font-weight: 760; letter-spacing: .14em; text-transform: uppercase; }
-.projectHero h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.7rem, 8vw, 7.2rem); font-weight: 500; letter-spacing: -.06em; line-height: .88; text-wrap: balance; }
-dl { margin: 0; display: grid; grid-template-columns: .7fr .8fr 1.5fr; }
-dl div { padding: 0 18px; border-left: 1px solid var(--cr-line); }
-dt { margin-bottom: 10px; color: var(--cr-muted); font-size: .7rem; }
-dd { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
-.contentSection { padding: 72px 0 78px; border-bottom: 1px solid var(--cr-line); }
-.sectionHeading { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(0, 1.2fr); gap: 40px; align-items: end; }
-.sectionHeading h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 3rem; font-weight: 500; letter-spacing: -.04em; }
-.sectionHeading > p { max-width: 500px; justify-self: end; margin: 0; color: var(--cr-muted); line-height: 1.65; }
-.sectionHeading > .primaryButton { justify-self: end; }
-.worksEmpty { min-height: 220px; margin-top: 30px; display: grid; place-content: center; justify-items: center; border: 1px dashed #c9c4b8; border-radius: 14px 14px 14px 4px; text-align: center; }
-.worksEmpty span { font-family: Georgia, "Times New Roman", serif; font-size: 2rem; }
-.worksEmpty p { max-width: 500px; margin: 12px 0 0; color: var(--cr-muted); line-height: 1.6; }
-.worksGrid { margin-top: 30px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.workCard img, .workCard video { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 10px 10px 3px 3px; background: var(--cr-soft); }
-.workCard h3 { margin: 13px 0 4px; font-size: .9rem; }
-.workCard p { margin: 0; color: var(--cr-muted); font-size: .72rem; }
-.workflowSection { border-bottom: 0; }
-.primaryButton, .secondaryButton { padding: 11px 16px; border: 0; border-radius: 8px; font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; transition: transform .2s, filter .2s; }
-.primaryButton { color: #25212e; background: var(--cr-gradient); }
-.primaryButton:hover { filter: saturate(1.08) brightness(.98); transform: translateY(-1px); }
-.primaryButton:active, .secondaryButton:active { transform: translateY(1px); }
-.primaryButton:disabled { opacity: .5; cursor: default; transform: none; }
-.secondaryButton { color: var(--cr-ink); background: rgba(255,255,255,.58); }
-.workflowCreator { margin-top: 30px; padding: 30px; display: grid; grid-template-columns: .9fr 1.1fr; gap: 50px; border-radius: 14px 14px 14px 4px; background: var(--cr-gradient-soft); }
-.workflowCreator h3, .workflowEmpty h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2rem; font-weight: 500; }
-.workflowCreator p:not(.eyebrow), .workflowEmpty p:not(.eyebrow) { max-width: 480px; margin: 12px 0 0; color: #5d5868; line-height: 1.55; }
-.creatorFields { align-self: end; display: grid; grid-template-columns: minmax(160px, 1fr) auto auto; gap: 8px; }
-.creatorFields input { min-width: 0; padding: 11px 13px; border: 1px solid rgba(71,62,89,.2); border-radius: 8px; color: var(--cr-ink); background: rgba(255,255,255,.68); font: inherit; }
-.creatorFields select { min-width: 0; padding: 11px 13px; border: 1px solid rgba(71,62,89,.2); border-radius: 8px; color: var(--cr-ink); background: rgba(255,255,255,.68); font: inherit; }
-.workflowCreator > a { color: var(--cr-violet); font-size: .82rem; }
-.creatorFields input:focus { outline: 3px solid rgba(122,115,253,.18); border-color: var(--cr-violet); }
-.workflowList { margin-top: 28px; border-top: 1px solid var(--cr-line); }
-.workflowList article { border-bottom: 1px solid var(--cr-line); }
-.workflowList .workflowMainButton { width: 100%; padding: 22px 4px; display: grid; grid-template-columns: 54px minmax(0, 1fr) auto auto; gap: 24px; align-items: center; border: 0; color: var(--cr-ink); background: transparent; text-align: left; cursor: pointer; transition: padding .2s, background .2s; }
-.workflowList .workflowMainButton:hover { padding-left: 14px; padding-right: 14px; background: rgba(255,255,255,.6); }
-.workflowList .upgradeButton { margin: 0 0 18px 58px; padding: 9px 13px; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-violet); background: #fff; font: inherit; font-size: .76rem; font-weight: 680; cursor: pointer; }
-.workflowIndex { color: #9b968c; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .68rem; }
-.workflowTitle { display: grid; gap: 7px; }
-.workflowTitle strong { font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 500; }
-.workflowTitle small, .workflowDate { color: var(--cr-muted); font-size: .72rem; }
-.workflowOpen { padding: 8px 11px; border-radius: 7px; color: #332d48; background: var(--cr-gradient-soft); font-size: .76rem; font-weight: 720; }
-.workflowEmpty { min-height: 250px; margin-top: 30px; padding: 34px; display: flex; align-items: end; justify-content: space-between; gap: 32px; border-radius: 14px 14px 14px 4px; background: var(--cr-soft); }
-.errorMessage { color: var(--cr-danger); font-size: .84rem; }
-.loadingState { min-height: calc(100dvh - 76px); display: grid; place-items: center; color: var(--cr-muted); }
+.pageShell {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  color: var(--cr-text-primary);
+  background: var(--cr-page-background);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
 
-@media (max-width: 900px) {
-  .projectHero, .sectionHeading, .workflowCreator { grid-template-columns: 1fr; }
-  .projectCanvasEntry { align-items: flex-start; flex-direction: column; }
-  .sectionHeading > p, .sectionHeading > .primaryButton { justify-self: start; }
-  .creatorFields { grid-template-columns: 1fr 1fr; }
-  .creatorFields input { grid-column: 1 / -1; }
+  .projectMain { width: min(100% - 48px, 1320px); margin: 0 auto; padding: 24px 0 24px; }
+  .breadcrumb { display: flex; gap: 8px; color: var(--cr-text-muted); font-size: 12px; }
+  .breadcrumb a { color: var(--cr-brand-primary); text-decoration: none; }
+  .projectHero { margin-top: 24px; padding-bottom: 24px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); gap: 24px; align-items: end; border-bottom: 1px solid var(--cr-border-subtle); }
+  .eyebrow { margin: 0 0 8px; color: var(--cr-brand-primary); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .projectHero h1 { margin: 0; overflow-wrap: anywhere; color: var(--cr-text-primary); font-size: 20px; font-weight: 600; line-height: 1.4; }
+  dl { margin: 0; display: grid; grid-template-columns: .7fr .8fr 1.5fr; }
+  dl div { min-width: 0; padding: 0 16px; border-left: 1px solid var(--cr-border-subtle); }
+  dt { margin-bottom: 8px; color: var(--cr-text-muted); font-size: 12px; }
+  dd { margin: 0; color: var(--cr-text-primary); font-size: 20px; font-variant-numeric: tabular-nums; }
+
+  .projectCanvasEntry { margin-top: 16px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--cr-border-subtle); border-radius: 8px; background: var(--cr-surface); }
+  .projectCanvasEntry h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .projectCanvasEntry p:last-child { margin: 8px 0 0; color: var(--cr-text-muted); font-size: 14px; }
+  .contentSection { padding: 24px 0; border-bottom: 1px solid var(--cr-border-subtle); }
+  .taskSection { padding-top: 24px; }
+  .taskNotice { margin-top: 12px; color: var(--cr-text-muted); font-size: 14px; }
+  .sectionHeading { display: grid; grid-template-columns: minmax(240px, .8fr) minmax(0, 1.2fr); gap: 24px; align-items: end; }
+  .sectionHeading h2 { margin: 0; color: var(--cr-text-primary); font-size: 20px; font-weight: 600; }
+  .sectionHeading > p { max-width: 520px; justify-self: end; margin: 0; color: var(--cr-text-muted); font-size: 14px; line-height: 1.5; }
+  .sectionHeading > button { justify-self: end; }
+  .worksEmpty { min-height: 160px; margin-top: 16px; padding: 16px; display: grid; place-content: center; justify-items: center; border: 1px dashed var(--cr-border-strong); border-radius: 8px; background: var(--cr-surface-subtle); text-align: center; }
+  .worksEmpty span { color: var(--cr-text-primary); font-size: 16px; font-weight: 600; }
+  .worksEmpty p { max-width: 500px; margin: 8px 0 0; color: var(--cr-text-muted); font-size: 14px; line-height: 1.5; }
+  .worksGrid { margin-top: 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .workCard { min-width: 0; padding: 8px; border: 1px solid var(--cr-border-subtle); border-radius: 8px; background: var(--cr-surface); }
+  .workCard img, .workCard video { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 6px; background: var(--cr-surface-subtle); }
+  .workCard h3 { margin: 8px 0 4px; color: var(--cr-text-primary); font-size: 14px; }
+  .workCard p { margin: 0; color: var(--cr-text-muted); font-size: 12px; }
+  .workActions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .workActions .secondaryButton { padding: 8px; border: 1px solid var(--cr-border-subtle); border-radius: 6px; color: var(--cr-text-primary); background: var(--cr-surface); font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
+  .workActions .secondaryButton:disabled { cursor: wait; }
+
+  .projectTask { margin-top: 12px; padding: 16px; border: 1px solid var(--cr-border-subtle); border-radius: 8px; background: var(--cr-surface); }
+  .projectTaskHeading { display: flex; justify-content: space-between; gap: 16px; color: var(--cr-text-primary); font-size: 14px; }
+  .projectTaskHeading span, .projectTask > p { color: var(--cr-text-muted); font-size: 12px; }
+  .projectTaskResult { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+  .workTitleInput { width: min(240px, 100%); min-height: 36px; padding: 8px; border: 1px solid var(--cr-border-subtle); border-radius: 6px; color: var(--cr-text-primary); background: var(--cr-surface); font: inherit; font-size: 14px; }
+  .workTitleInput:focus-visible { outline: 2px solid var(--cr-border-focus); outline-offset: 2px; }
+  .projectTaskResult img, .projectTaskResult video { width: min(360px, 100%); max-height: 240px; object-fit: contain; border-radius: 6px; background: var(--cr-surface-subtle); }
+  .projectTaskResult a { color: var(--cr-brand-primary); font-size: 14px; }
+  .projectTaskResult span { color: var(--cr-status-success); font-size: 12px; }
+
+  .workflowSection { border-bottom: 0; }
+  .workflowCreator { margin-top: 16px; padding: 16px; display: grid; grid-template-columns: minmax(0, .8fr) minmax(360px, 1.2fr); gap: 16px; border: 1px solid var(--cr-border-subtle); border-radius: 8px; background: var(--cr-surface); }
+  .workflowCreator h3 { margin: 0; font-size: 16px; }
+  .workflowCreator p { color: var(--cr-text-muted); font-size: 14px; line-height: 1.5; }
+  .workflowCreator > a { color: var(--cr-brand-primary); font-size: 14px; }
+  .creatorFields { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-content: start; }
+  .creatorFields select { min-width: 0; padding: 8px; grid-column: 1 / -1; border: 1px solid var(--cr-border-subtle); border-radius: 6px; color: var(--cr-text-primary); background: var(--cr-surface); font: inherit; font-size: 14px; }
+  .workflowList { margin-top: 24px; border-top: 1px solid var(--cr-border-subtle); }
+  .workflowList article { border-bottom: 1px solid var(--cr-border-subtle); }
+  .workflowList .workflowMainButton { width: 100%; min-width: 0; padding: 12px 8px; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; border: 0; color: var(--cr-text-primary); background: transparent; text-align: left; cursor: pointer; }
+  .workflowList .workflowMainButton:hover { background: var(--cr-surface-hover); }
+  .workflowList .upgradeButton { margin: 0 0 12px 48px; padding: 8px 12px; border: 1px solid var(--cr-border-subtle); border-radius: 6px; color: var(--cr-brand-primary); background: var(--cr-surface); font: inherit; font-size: 12px; cursor: pointer; }
+  .workflowIndex { color: var(--cr-text-muted); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .workflowTitle { min-width: 0; display: grid; gap: 4px; }
+  .workflowTitle strong { overflow: hidden; color: var(--cr-text-primary); font-size: 14px; font-weight: 600; text-overflow: ellipsis; }
+  .workflowTitle small, .workflowDate { color: var(--cr-text-muted); font-size: 12px; }
+  .workflowOpen { padding: 8px; border-radius: 6px; color: var(--cr-text-primary); background: var(--cr-surface-hover); font-size: 12px; font-weight: 600; }
+  .workflowEmpty { min-height: 160px; margin-top: 16px; padding: 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px dashed var(--cr-border-strong); border-radius: 8px; background: var(--cr-surface-subtle); }
+  .workflowEmpty h3 { margin: 0; color: var(--cr-text-primary); font-size: 16px; }
+  .workflowEmpty p { color: var(--cr-text-muted); font-size: 14px; }
+  .primaryButton, .secondaryButton { min-height: 36px; padding: 8px 12px; border-radius: 6px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .primaryButton { border: 0; color: var(--cr-text-primary); background: var(--cr-gradient); box-shadow: 0 2px 8px color-mix(in srgb, var(--cr-brand-primary) 25%, transparent); }
+  .secondaryButton { border: 1px solid var(--cr-border-subtle); color: var(--cr-text-primary); background: var(--cr-surface); }
+  .secondaryButton:hover { background: var(--cr-surface-hover); }
+  .primaryButton:focus-visible, .secondaryButton:focus-visible, a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--cr-border-focus); outline-offset: 2px; }
+  .errorMessage { color: var(--cr-status-danger); font-size: 14px; }
+  .loadingState { min-height: calc(100dvh - 56px); display: grid; place-items: center; color: var(--cr-text-muted); }
 }
-@media (max-width: 650px) {
-  .projectMain { width: min(100% - 24px, 1320px); }
-  .projectHero { margin-top: 40px; }
-  .projectHero h1 { font-size: 4rem; }
-  dl { grid-template-columns: 1fr 1fr; row-gap: 24px; }
-  dl div:last-child { grid-column: 1 / -1; }
-  .worksGrid { grid-template-columns: 1fr; }
-  .workflowList button { grid-template-columns: 34px minmax(0, 1fr); gap: 14px; }
-  .workflowDate, .workflowOpen { grid-column: 2; }
-  .workflowEmpty { align-items: start; flex-direction: column; }
+
+@media (max-width: 1319px) {
+  .pageShell .projectMain { width: min(100% - 40px, 1100px); }
+  .pageShell .worksGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1155px) {
+  .pageShell {
+    .projectMain { width: min(100% - 32px, 900px); }
+    .projectHero, .sectionHeading, .workflowCreator { grid-template-columns: minmax(0, 1fr); }
+    .projectHero { margin-top: 24px; padding-bottom: 24px; }
+    .sectionHeading > p, .sectionHeading > button { justify-self: start; }
+    .projectCanvasEntry { align-items: flex-start; flex-direction: column; }
+    .creatorFields { grid-template-columns: minmax(0, 1fr) auto auto; }
+  }
+}
+
+@media (max-width: 600px) {
+  .pageShell {
+    .projectMain { width: calc(100% - 24px); }
+    .worksGrid { grid-template-columns: minmax(0, 1fr); }
+    dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 0; }
+    dl div:last-child { grid-column: 1 / -1; }
+    .workflowList .workflowMainButton { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+    .workflowDate, .workflowOpen { grid-column: 2; }
+    .workflowEmpty { align-items: flex-start; flex-direction: column; }
+    .creatorFields { grid-template-columns: minmax(0, 1fr) auto; }
+  }
 }
 </style>

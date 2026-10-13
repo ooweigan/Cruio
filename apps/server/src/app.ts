@@ -1,12 +1,91 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import createDashboardRoute from "@/routes/operations/dashboard/get";
+import createUsersListRoute from "@/routes/operations/users/list";
+import createUserStatusRoute from "@/routes/operations/users/status";
+import createLogsListRoute from "@/routes/operations/logs/list";
 import express from "express";
 import type { NextFunction, Request, Response } from "express";
+import { basename, resolve } from "node:path";
 import { createDatabase, type Database } from "./db/database";
+import { createHeadRoute } from "@/routes/media/head";
+import { createListRoute } from "@/routes/media/list";
+import { createReadRoute } from "@/routes/media/read";
+import { createRetractRoute } from "@/routes/media/retract";
+import { createStatusRoute } from "@/routes/media/status";
+import { createUploadRoute } from "@/routes/media/upload";
+import { createCreditsGetRoute } from "@/routes/credits/get";
+import { createGenerationModelsRoute } from "@/routes/generation/models";
+import { createGenerationQuoteRoute } from "@/routes/generation/quote";
+import { createGenerationSubmitRoute } from "@/routes/generation/tasks/submit";
+import { createGenerationTaskGetRoute } from "@/routes/generation/tasks/get";
+import { createGenerationTaskListRoute } from "@/routes/generation/tasks/list";
+import { createGenerationTaskActionsRoute } from "@/routes/generation/tasks/actions";
+import { createOperationsGenerationTaskListRoute } from "@/routes/operations/generation/tasks/list";
+import { createOperationsGenerationTaskReviewRoute } from "@/routes/operations/generation/tasks/review";
+import { createOperationsGenerationTaskActionsRoute } from "@/routes/operations/generation/tasks/actions";
+import { createOperationsGenerationModelsGetRoute } from "@/routes/operations/generation/models/get";
+import { createOperationsGenerationModelRevisionRoute } from "@/routes/operations/generation/models/revision";
+import { createOperationsGenerationModelPublishRoute } from "@/routes/operations/generation/models/publish";
+import { createOperationsGenerationModelPauseRoute } from "@/routes/operations/generation/models/pause";
+import { createPrivacyRequestCreateRoute } from "@/routes/privacy/requests/create";
+import { createPrivacyRequestListRoute } from "@/routes/privacy/requests/list";
+import { createPrivacyRequestGetRoute } from "@/routes/privacy/requests/get";
+import { createPrivacyRequestSupplementRoute } from "@/routes/privacy/requests/supplement";
+import { createOperationsPrivacyRequestListRoute } from "@/routes/operations/privacy/requests/list";
+import { createOperationsPrivacyRequestGetRoute } from "@/routes/operations/privacy/requests/get";
+import { createOperationsPrivacyRequestActionRoute } from "@/routes/operations/privacy/requests/actions";
+import { createGenerationResultAdoptRoute } from "@/routes/generation/results/adopt";
+import { createGenerationResultHeadRoute } from "@/routes/generation/results/head";
+import { createGenerationResultReadRoute } from "@/routes/generation/results/read";
+import { createWorkSaveRoute } from "@/routes/works/save";
+import { createWorkDownloadRoute } from "@/routes/works/download";
+import { createWorkRemoveRoute } from "@/routes/works/remove";
+import { synchronizeGenerationModels } from "@/utils/generation/models";
+import { findVideoToolchain } from "@/utils/generation/delivery";
+import { createOperationsCreditsUsersRoute } from "@/routes/operations/credits/users";
+import { createOperationsCreditsLedgerRoute } from "@/routes/operations/credits/ledger";
+import { createOperationsCreditsPreviewRoute } from "@/routes/operations/credits/preview";
+import { createOperationsCreditsTopupRoute } from "@/routes/operations/credits/topup";
+import { createOperationsCreditsRefundRoute } from "@/routes/operations/credits/refund";
+import { createOperationsCreditsReversalRoute } from "@/routes/operations/credits/reversal";
+import { createOperationsCreditsCredentialRoute } from "@/routes/operations/credits/credential";
+import { createOperationsReconciliationRoute } from "@/routes/operations/reconciliation";
+import { createOperationsRolesGetRoute } from "@/routes/operations/roles/get";
+import { createOperationsRolesUsersRoute } from "@/routes/operations/roles/users";
+import { createOperationsRolesGrantRoute } from "@/routes/operations/roles/grant";
+import { createOperationsRolesRevokeRoute } from "@/routes/operations/roles/revoke";
+import { createCreditsLedgerRoute } from "@/routes/credits/ledger";
+import { createAuthRegisterRoute } from "@/routes/auth/register";
+import { createAuthLoginRoute } from "@/routes/auth/login";
+import { createAuthResendVerificationRoute } from "@/routes/auth/resendVerification";
+import { createAuthVerifyEmailRoute } from "@/routes/auth/verifyEmail";
+import { createAuthPasswordResetRequestRoute } from "@/routes/auth/passwordResetRequest";
+import { createAuthPasswordResetConfirmRoute } from "@/routes/auth/passwordResetConfirm";
+import { createAuthSessionsRoute } from "@/routes/auth/sessions";
+import { createAuthRevokeOtherSessionsRoute } from "@/routes/auth/sessionsRevokeOthers";
+import { createAuthRevokeSessionRoute } from "@/routes/auth/sessionsRevokeOne";
+import { createNotificationsListRoute } from "@/routes/notifications/list";
+import { createNotificationsReadRoute } from "@/routes/notifications/read";
+import { createSupportUserListRoute } from "@/routes/support/userList";
+import { createSupportTicketCreateRoute } from "@/routes/support/create";
+import { createSupportTicketGetRoute } from "@/routes/support/userGet";
+import { createSupportUserReplyRoute } from "@/routes/support/userReply";
+import { createSupportTicketReopenRoute } from "@/routes/support/reopen";
+import { createSupportQueueRoute } from "@/routes/support/queue";
+import { createSupportOperationsGetRoute } from "@/routes/support/operationsGet";
+import { createSupportOperationsActionRoute } from "@/routes/support/operationsAction";
+import { createScriptListRoute } from "@/routes/scripts/list";
+import { createScriptCreateRoute } from "@/routes/scripts/create";
+import { createScriptGetRoute } from "@/routes/scripts/get";
+import { createScriptRemoveRoute } from "@/routes/scripts/remove";
+import { createScriptNewVersionRoute } from "@/routes/scripts/newVersion";
+import { createShotListListRoute } from "@/routes/shotLists/list";
+import { createShotListCreateRoute } from "@/routes/shotLists/create";
+import { createShotListGetRoute } from "@/routes/shotLists/get";
+import { createShotListNewVersionRoute } from "@/routes/shotLists/newVersion";
 
 const sessionCookieName = "cruio_session";
-const sessionLifetimeMs = 1000 * 60 * 60 * 24 * 30;
-
-type AuthenticatedUser = { id: string; email: string };
+type AuthenticatedUser = { id: string; email: string; emailVerifiedAt: Date | null };
 type Canvas = { nodes: unknown[]; edges: unknown[] };
 
 function hashToken(token: string) {
@@ -22,16 +101,6 @@ function readCookie(request: Request, name: string) {
   return null;
 }
 
-function setSessionCookie(response: Response, token: string) {
-  response.cookie(sessionCookieName, token, {
-    httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: sessionLifetimeMs,
-    path: "/",
-  });
-}
-
 function clearSessionCookie(response: Response) {
   response.clearCookie(sessionCookieName, {
     httpOnly: true,
@@ -39,14 +108,6 @@ function clearSessionCookie(response: Response) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
-}
-
-function normalizeEmail(value: unknown) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
-
-function validEmail(email: string) {
-  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function validCanvas(value: unknown): value is Canvas {
@@ -70,77 +131,44 @@ function workflowReferences(canvas: Canvas) {
   return [...ids];
 }
 
-async function createSession(database: Database, userId: string) {
-  const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + sessionLifetimeMs);
-  await database`
-    INSERT INTO sessions (id, user_id, token_hash, expires_at)
-    VALUES (${randomUUID()}, ${userId}, ${hashToken(token)}, ${expiresAt})
-  `;
-  return token;
-}
-
 async function currentUser(database: Database, request: Request) {
   const token = readCookie(request, sessionCookieName);
   if (!token) return null;
   const users = await database<AuthenticatedUser[]>`
-    SELECT users.id, users.email
+    SELECT users.id, users.email, users.email_verified_at AS "emailVerifiedAt"
     FROM sessions
     JOIN users ON users.id = sessions.user_id
     WHERE sessions.token_hash = ${hashToken(token)}
-      AND sessions.expires_at > now()
+      AND sessions.expires_at > now() AND users.disabled_at IS NULL
   `;
   return users[0] ?? null;
 }
 
-export async function createApp(options: { database?: Database } = {}) {
+export async function createApp(options: { database?: Database; dataDirectory?: string; storageDirectory?: string; generationConfigFile?: string } = {}) {
   const database = options.database ?? (await createDatabase());
+  const dataDirectory = options.dataDirectory ?? resolve(import.meta.dir, basename(import.meta.dir) === "src" ? "../../../data" : "../../data");
+  const storageDirectory = options.storageDirectory ?? resolve(dataDirectory, "privateMedia");
+  await synchronizeGenerationModels(database, options.generationConfigFile ?? process.env.CRUIO_GENERATION_MODELS_FILE);
+  const videoRuntimeAvailable = Boolean(await findVideoToolchain(dataDirectory));
   const app = express();
 
   app.disable("x-powered-by");
   app.use(express.json({ limit: "2mb" }));
+  app.use((_request, response, next) => {
+    response.locals.database = database;
+    next();
+  });
   app.get("/api/health", async (_request, response) => {
     await database`SELECT 1`;
     response.json({ status: "ok", service: "cruio", database: "connected" });
   });
 
-  app.post("/api/auth/register", async (request, response) => {
-    const email = normalizeEmail(request.body?.email);
-    const password = request.body?.password;
-    if (!validEmail(email) || typeof password !== "string" || password.length < 8) {
-      response.status(400).json({ message: "请输入有效邮箱和至少 8 位密码。" });
-      return;
-    }
-    const existing = await database`SELECT id FROM users WHERE email = ${email}`;
-    if (existing.length > 0) {
-      response.status(409).json({ message: "该邮箱已注册。" });
-      return;
-    }
-
-    const user: AuthenticatedUser = { id: randomUUID(), email };
-    const passwordHash = await Bun.password.hash(password, { algorithm: "argon2id" });
-    await database`
-      INSERT INTO users (id, email, password_hash)
-      VALUES (${user.id}, ${user.email}, ${passwordHash})
-    `;
-    setSessionCookie(response, await createSession(database, user.id));
-    response.status(201).json({ user });
-  });
-
-  app.post("/api/auth/login", async (request, response) => {
-    const email = normalizeEmail(request.body?.email);
-    const password = request.body?.password;
-    const rows = await database<(AuthenticatedUser & { passwordHash: string })[]>`
-      SELECT id, email, password_hash AS "passwordHash" FROM users WHERE email = ${email}
-    `;
-    const user = rows[0];
-    if (!user || typeof password !== "string" || !(await Bun.password.verify(password, user.passwordHash))) {
-      response.status(401).json({ message: "邮箱或密码不正确。" });
-      return;
-    }
-    setSessionCookie(response, await createSession(database, user.id));
-    response.json({ user: { id: user.id, email: user.email } });
-  });
+  app.use("/api/auth/register", createAuthRegisterRoute({ database, dataDirectory }));
+  app.use("/api/auth/login", createAuthLoginRoute(database));
+  app.use("/api/auth/resendVerification", createAuthResendVerificationRoute({ database, dataDirectory }));
+  app.use("/api/auth/verifyEmail", createAuthVerifyEmailRoute(database));
+  app.use("/api/auth/passwordReset/request", createAuthPasswordResetRequestRoute({ database, dataDirectory }));
+  app.use("/api/auth/passwordReset/confirm", createAuthPasswordResetConfirmRoute(database));
 
   app.post("/api/auth/logout", async (request, response) => {
     const token = readCookie(request, sessionCookieName);
@@ -149,7 +177,7 @@ export async function createApp(options: { database?: Database } = {}) {
     response.status(204).end();
   });
 
-  app.use(["/api/projects", "/api/workflows"], async (request, response, next) => {
+  app.use(["/api/projects", "/api/workflows", "/api/scripts", "/api/shotLists", "/api/media", "/api/generation", "/api/credits", "/api/works", "/api/operations", "/api/account", "/api/notifications", "/api/support", "/api/privacy", "/api/auth/me", "/api/auth/sessions"], async (request, response, next) => {
     const user = await currentUser(database, request);
     if (!user) {
       response.status(401).json({ message: "请先登录。" });
@@ -159,13 +187,31 @@ export async function createApp(options: { database?: Database } = {}) {
     next();
   });
 
+  app.use("/api/auth/sessions", createAuthSessionsRoute(database));
+  app.use("/api/auth/sessions", createAuthRevokeSessionRoute(database));
+  app.use("/api/auth/sessions/revokeOthers", createAuthRevokeOtherSessionsRoute(database));
+  app.use("/api/scripts", createScriptListRoute(database));
+  app.use("/api/scripts", createScriptCreateRoute(database));
+  app.use("/api/scripts", createScriptGetRoute(database));
+  app.use("/api/scripts", createScriptNewVersionRoute(database));
+  app.use("/api/scripts", createScriptRemoveRoute(database));
+  app.use("/api/shotLists", createShotListListRoute(database));
+  app.use("/api/shotLists", createShotListCreateRoute(database));
+  app.use("/api/shotLists", createShotListGetRoute(database));
+  app.use("/api/shotLists", createShotListNewVersionRoute(database));
+
   app.get("/api/auth/me", async (request, response) => {
     const user = await currentUser(database, request);
     if (!user) {
       response.status(401).json({ message: "请先登录。" });
       return;
     }
-    response.json({ user });
+    const roles = await database<{ id: string; role: string; scopeKind: string; scopeUserId: string | null; expiresAt: Date; reason: string }[]>`
+      SELECT id, role, scope_kind AS "scopeKind", scope_user_id AS "scopeUserId", expires_at AS "expiresAt", reason
+      FROM staff_role_grants WHERE user_id = ${user.id} AND revoked_at IS NULL AND expires_at > now()
+      ORDER BY role, expires_at
+    `;
+    response.json({ user, roles });
   });
 
   app.get("/api/projects", async (_request, response) => {
@@ -235,7 +281,7 @@ export async function createApp(options: { database?: Database } = {}) {
         works.preview_url AS "previewUrl", works.created_at AS "createdAt"
       FROM works
       JOIN projects ON projects.id = works.project_id
-      WHERE works.project_id = ${request.params.projectId} AND projects.owner_id = ${user.id}
+      WHERE works.project_id = ${request.params.projectId} AND projects.owner_id = ${user.id} AND works.deleted_at IS NULL
       ORDER BY works.created_at DESC
     `;
     response.json({ project: { ...projects[0], workflows, works } });
@@ -561,9 +607,71 @@ export async function createApp(options: { database?: Database } = {}) {
     response.json({ workflow });
   });
 
-  app.use((error: Error, _request: Request, response: Response, _next: NextFunction) => {
+  app.use("/api/media/upload", createUploadRoute(database, storageDirectory));
+  app.use("/api/media/list", createListRoute(database, storageDirectory));
+  app.use("/api/media/read", createHeadRoute(database, storageDirectory));
+  app.use("/api/media/read", createReadRoute(database, storageDirectory));
+  app.use("/api/media/status", createStatusRoute(database, storageDirectory));
+  app.use("/api/media/retract", createRetractRoute(database, storageDirectory));
+  app.use("/api/generation/models", createGenerationModelsRoute(database, videoRuntimeAvailable));
+  app.use("/api/generation/quotes", createGenerationQuoteRoute(database, videoRuntimeAvailable, storageDirectory));
+  app.use("/api/generation/tasks", createGenerationTaskActionsRoute(database));
+  app.use("/api/generation/tasks", createGenerationSubmitRoute(database, storageDirectory));
+  app.use("/api/generation/tasks", createGenerationTaskListRoute(database));
+  app.use("/api/generation/tasks", createGenerationTaskGetRoute(database));
+  app.use("/api/generation/results", createGenerationResultAdoptRoute(database, storageDirectory));
+  app.use("/api/generation/results", createGenerationResultHeadRoute(database, storageDirectory));
+  app.use("/api/generation/results", createGenerationResultReadRoute(database, storageDirectory));
+  app.use("/api/credits", createCreditsGetRoute(database));
+  app.use("/api/credits/ledger", createCreditsLedgerRoute(database));
+  app.use("/api/operations/credits/users", createOperationsCreditsUsersRoute(database));
+  app.use("/api/operations/credits/users", createOperationsCreditsLedgerRoute(database));
+  app.use("/api/operations/credits/preview", createOperationsCreditsPreviewRoute(database, resolve(dataDirectory, "privateCredits")));
+  app.use("/api/operations/credits", createOperationsCreditsTopupRoute(database, resolve(dataDirectory, "privateCredits")));
+  app.use("/api/operations/credits", createOperationsCreditsRefundRoute(database, resolve(dataDirectory, "privateCredits")));
+  app.use("/api/operations/credits", createOperationsCreditsReversalRoute(database, resolve(dataDirectory, "privateCredits")));
+  app.use("/api/operations/credits/entries", createOperationsCreditsCredentialRoute(database, resolve(dataDirectory, "privateCredits")));
+  app.use("/api/operations/reconciliation", createOperationsReconciliationRoute(database, storageDirectory));
+  app.use("/api/operations/dashboard", createDashboardRoute(database));
+  app.use("/api/operations/users", createUsersListRoute(database));
+  app.use("/api/operations/users/status", createUserStatusRoute(database));
+  app.use("/api/operations/logs", createLogsListRoute(database));
+  app.use("/api/operations/roles", createOperationsRolesGetRoute(database));
+  app.use("/api/operations/roles/users", createOperationsRolesUsersRoute(database));
+  app.use("/api/operations/roles", createOperationsRolesGrantRoute(database));
+  app.use("/api/operations/roles", createOperationsRolesRevokeRoute(database));
+  app.use("/api/works", createWorkSaveRoute(database, storageDirectory));
+  app.use("/api/works", createWorkDownloadRoute(database, storageDirectory));
+  app.use("/api/works", createWorkRemoveRoute(database));
+  app.use("/api/operations/generation/tasks", createOperationsGenerationTaskListRoute(database));
+  app.use("/api/operations/generation/tasks", createOperationsGenerationTaskActionsRoute(database));
+  app.use("/api/operations/generation/tasks", createOperationsGenerationTaskReviewRoute(database, storageDirectory));
+  app.use("/api/operations/generation/models", createOperationsGenerationModelsGetRoute(database));
+  app.use("/api/operations/generation/models", createOperationsGenerationModelRevisionRoute(database));
+  app.use("/api/operations/generation/models", createOperationsGenerationModelPublishRoute(database));
+  app.use("/api/operations/generation/models", createOperationsGenerationModelPauseRoute(database));
+  app.use("/api/notifications", createNotificationsListRoute(database));
+  app.use("/api/notifications", createNotificationsReadRoute(database));
+  app.use("/api/support", createSupportUserListRoute(database));
+  app.use("/api/support", createSupportTicketCreateRoute(database));
+  app.use("/api/support", createSupportTicketGetRoute(database));
+  app.use("/api/support", createSupportUserReplyRoute(database));
+  app.use("/api/support", createSupportTicketReopenRoute(database));
+  app.use("/api/support", createSupportQueueRoute(database));
+  app.use("/api/support", createSupportOperationsGetRoute(database));
+  app.use("/api/support", createSupportOperationsActionRoute(database));
+  app.use("/api/privacy", createPrivacyRequestCreateRoute(database));
+  app.use("/api/privacy", createPrivacyRequestListRoute(database));
+  app.use("/api/privacy", createPrivacyRequestGetRoute(database));
+  app.use("/api/privacy", createPrivacyRequestSupplementRoute(database));
+  app.use("/api/operations/privacy/requests", createOperationsPrivacyRequestListRoute(database));
+  app.use("/api/operations/privacy/requests", createOperationsPrivacyRequestGetRoute(database));
+  app.use("/api/operations/privacy/requests", createOperationsPrivacyRequestActionRoute(database));
+
+  app.use((error: Error & { status?: number; code?: string }, _request: Request, response: Response, _next: NextFunction) => {
     console.error(error.message);
-    response.status(500).json({ message: "服务器暂时无法处理请求。" });
+    const status = error.status && error.status >= 400 && error.status <= 599 ? error.status : error.code === "23505" ? 409 : 500;
+    response.status(status).json({ message: status === 500 ? "服务器暂时无法处理请求。" : error.message });
   });
 
   return app;

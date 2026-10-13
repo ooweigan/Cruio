@@ -34,6 +34,8 @@ data/
 storage/
 uploads/
 media/
+!apps/server/src/routes/media/
+!apps/server/src/routes/media/**
 work/
 backup/
 

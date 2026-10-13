@@ -1,6 +1,6 @@
 <template>
   <div class="pageShell">
-    <cruio-header />
+    <cruioHeader />
 
     <main v-if="ready" class="projectsMain">
       <section class="pageIntro">
@@ -8,7 +8,7 @@
           <h1>项目</h1>
           <p>管理成片和工作流，继续最近一次创作。</p>
         </div>
-        <button class="primaryButton" type="button" @click="openCreator">新建项目</button>
+        <button ref="createTrigger" class="primaryButton" type="button" @click="openCreator">新建项目</button>
       </section>
 
       <section class="projectSection" aria-labelledby="all-projects-heading">
@@ -55,8 +55,8 @@
       <p v-if="message" class="errorMessage">{{ message }}</p>
     </main>
 
-    <Teleport to="body">
-      <Transition name="dialog-fade">
+    <teleport to="body">
+      <transition name="dialogFade">
         <div
           v-if="showCreator"
           class="dialogBackdrop"
@@ -70,6 +70,7 @@
             aria-modal="true"
             aria-labelledby="create-project-heading"
             aria-describedby="create-project-description"
+            @keydown="trapDialogFocus"
           >
             <div class="dialogMark" aria-hidden="true">+</div>
             <div class="dialogHeading">
@@ -95,15 +96,15 @@
             </form>
           </section>
         </div>
-      </Transition>
-    </Teleport>
+      </transition>
+    </teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import CruioHeader from "@/components/cruioHeader.vue";
+import cruioHeader from "@/components/cruioHeader.vue";
 import { api } from "@/lib/cruioApi";
 import { useCruioSession } from "@/stores/cruioSession";
 
@@ -123,6 +124,7 @@ const query = ref("");
 const newProjectName = ref("");
 const showCreator = ref(false);
 const projectNameInput = ref<HTMLInputElement>();
+const createTrigger = ref<HTMLButtonElement>();
 const loading = ref(true);
 const working = ref(false);
 const ready = ref(false);
@@ -176,10 +178,31 @@ async function openCreator() {
   projectNameInput.value?.focus();
 }
 
-function cancelCreate() {
+async function cancelCreate() {
   if (working.value) return;
   showCreator.value = false;
   newProjectName.value = "";
+  await nextTick();
+  createTrigger.value?.focus();
+}
+
+function trapDialogFocus(event: KeyboardEvent) {
+  if (event.key !== "Tab") return;
+  const dialog = event.currentTarget as HTMLElement;
+  const focusable = [...dialog.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+  )].filter(element => element.getClientRects().length > 0);
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (!first || !last) return;
+  const active = document.activeElement;
+  if (event.shiftKey && (active === first || !dialog.contains(active))) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 async function openProject(projectId: string) {
@@ -191,66 +214,5 @@ function formatDate(value: string) {
 }
 </script>
 
-<style scoped lang="scss">
-.pageShell { min-height: 100dvh; color: var(--cr-ink); background: var(--cr-paper); }
-.projectsMain { width: min(100% - 40px, 1320px); margin: 0 auto; padding: 74px 0 110px; }
-.pageIntro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: end; }
-.pageIntro h1 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(4rem, 9vw, 8rem); font-weight: 500; letter-spacing: -.065em; line-height: .84; }
-.pageIntro p:last-child { max-width: 590px; margin: 28px 0 0; color: var(--cr-muted); font-size: 1rem; line-height: 1.7; }
-.eyebrow { margin: 0 0 14px; color: var(--cr-violet); font-size: .7rem; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; }
-.primaryButton, .secondaryButton { padding: 12px 18px; border: 0; border-radius: 8px; font: inherit; font-size: .84rem; font-weight: 700; cursor: pointer; transition: transform .2s, background .2s; }
-.primaryButton { color: #28242e; background: var(--cr-gradient); }
-.primaryButton:hover { filter: saturate(1.08) brightness(.98); transform: translateY(-1px); }
-.primaryButton:active, .secondaryButton:active { transform: translateY(1px); }
-.primaryButton:disabled { opacity: .5; cursor: default; transform: none; }
-.secondaryButton { color: var(--cr-ink); background: var(--cr-soft); }
-.createStrip { margin: 58px 0 0; padding: 28px; display: grid; grid-template-columns: .8fr 1.2fr; gap: 40px; align-items: end; border-radius: 14px 14px 14px 4px; color: #28242e; background: var(--cr-gradient); }
-.createStrip .eyebrow { color: rgba(40,36,46,.62); }
-.createStrip h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2rem; font-weight: 500; }
-.createStrip form { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto; gap: 9px; }
-.createStrip input { min-width: 0; padding: 12px 14px; border: 1px solid rgba(40,36,46,.18); border-radius: 8px; color: var(--cr-ink); background: rgba(255,255,255,.52); font: inherit; }
-.createStrip input::placeholder { color: rgba(40,36,46,.5); }
-.createStrip input:focus { outline: 2px solid rgba(40,36,46,.3); outline-offset: 1px; }
-.createStrip .primaryButton { color: #f5f1e8; background: #332d48; }
-.createStrip .secondaryButton { color: #332d48; background: rgba(255,255,255,.38); }
-.projectSection { margin-top: 88px; }
-.sectionHeader { display: flex; align-items: end; justify-content: space-between; gap: 28px; padding-bottom: 18px; border-bottom: 1px solid var(--cr-line); }
-.sectionHeader h2 { margin: 0; font-size: 1rem; font-weight: 720; }
-.sectionHeader h2 span { margin-left: 7px; color: var(--cr-muted); font-variant-numeric: tabular-nums; }
-.searchField { display: flex; align-items: center; gap: 10px; color: var(--cr-muted); font-size: .72rem; }
-.searchField input { width: 190px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--cr-line); outline: 0; color: var(--cr-ink); background: transparent; font: inherit; }
-.searchField input:focus { border-color: var(--cr-green); }
-.projectGrid, .loadingGrid { margin-top: 22px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.projectCard { min-height: 260px; }
-.projectCard button { width: 100%; height: 100%; padding: 22px; display: grid; grid-template-rows: auto 1fr auto; border: 1px solid var(--cr-line); border-radius: 12px 12px 12px 3px; color: var(--cr-ink); background: rgba(255,254,249,.56); text-align: left; cursor: pointer; transition: transform .22s ease, border-color .22s, background .22s; }
-.projectCard button:hover { transform: translateY(-4px); border-color: #a8ab9f; background: #fffef9; }
-.projectCard button:focus-visible { outline: 3px solid rgba(36,85,61,.2); outline-offset: 3px; }
-.cardIndex { justify-self: end; color: #a2a398; font-family: ui-monospace, SFMono-Regular, monospace; font-size: .68rem; font-variant-numeric: tabular-nums; }
-.cardBody { align-self: center; display: grid; gap: 12px; }
-.projectName { font-family: Georgia, "Times New Roman", serif; font-size: 1.8rem; letter-spacing: -.025em; line-height: 1.05; }
-.projectMeta, .cardFooter { color: var(--cr-muted); font-size: .76rem; }
-.cardFooter { display: flex; justify-content: space-between; gap: 14px; padding-top: 15px; border-top: 1px solid var(--cr-line); }
-.openLabel { color: var(--cr-violet); font-weight: 700; }
-.skeletonCard { height: 260px; border-radius: 12px 12px 12px 3px; background: linear-gradient(90deg, var(--cr-soft), #f4f2eb, var(--cr-soft)); background-size: 200% 100%; animation: shimmer 1.4s infinite linear; }
-.emptyState { min-height: 330px; display: grid; place-content: center; justify-items: center; text-align: center; }
-.emptyState h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.4rem; font-weight: 500; letter-spacing: -.035em; }
-.emptyState p:not(.eyebrow) { max-width: 480px; margin: 16px 0 24px; color: var(--cr-muted); line-height: 1.65; }
-.errorMessage { color: var(--cr-danger); font-size: .84rem; }
-@keyframes shimmer { to { background-position: -200% 0; } }
 
-@media (max-width: 900px) {
-  .projectGrid, .loadingGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .createStrip { grid-template-columns: 1fr; }
-}
-@media (max-width: 620px) {
-  .projectsMain { width: min(100% - 24px, 1320px); padding-top: 48px; }
-  .pageIntro { grid-template-columns: 1fr; align-items: start; }
-  .pageIntro h1 { font-size: 4rem; }
-  .createStrip form { grid-template-columns: 1fr 1fr; }
-  .createStrip input { grid-column: 1 / -1; }
-  .projectGrid, .loadingGrid { grid-template-columns: 1fr; }
-  .sectionHeader { align-items: start; flex-direction: column; }
-  .searchField, .searchField input { width: 100%; }
-}
-</style>
 <style scoped lang="scss" src="./projectsPage.redesign.scss"></style>

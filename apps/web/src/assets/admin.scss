@@ -1,0 +1,38 @@
+.adminShell .adminContent {
+  h1 { margin: 0; font-size: 20px; font-weight: 650; line-height: 1.4; }
+  h2 { margin: 0; font-size: 14px; font-weight: 600; }
+  .adminHeading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px;
+    p { margin: 6px 0 0; font-size: 12px; color: var(--cr-text-muted); }
+  }
+  .adminButton { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 6px 12px; border: 1px solid var(--cr-border-strong); border-radius: 5px; background: var(--cr-surface); color: var(--cr-text-primary); font-size: 12px; cursor: pointer; text-decoration: none; white-space: nowrap;
+    &:hover { background: var(--cr-surface-hover); } &:disabled { opacity: .5; cursor: not-allowed; }
+    &.primary { background: var(--cr-text-primary); border-color: var(--cr-text-primary); color: var(--cr-surface); }
+    &.danger { color: var(--cr-status-danger); }
+  }
+  .adminToolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px;
+    label { display: grid; gap: 4px; font-size: 12px; color: var(--cr-text-secondary); }
+    input, select { min-height: 34px; max-width: 100%; border: 1px solid var(--cr-border-strong); border-radius: 5px; padding: 6px 10px; background: var(--cr-surface); color: var(--cr-text-primary); }
+  }
+  .adminTableWrap { overflow-x: auto; border: 1px solid var(--cr-border-subtle); border-radius: 6px; background: var(--cr-surface);
+    table { border-collapse: collapse; width: 100%; text-align: left; font-size: 12px; }
+    th { padding: 11px 16px; color: var(--cr-text-muted); background: var(--cr-surface-subtle); font-weight: 500; white-space: nowrap; }
+    td { padding: 14px 16px; border-top: 1px solid var(--cr-border-subtle); vertical-align: middle; }
+    tbody tr:hover { background: var(--cr-surface-subtle); }
+    .secondaryText { display: block; margin-top: 4px; color: var(--cr-text-muted); font-size: 11px; }
+  }
+  .adminEmpty { padding: 40px 16px; text-align: center; font-size: 13px; color: var(--cr-text-muted); }
+  .adminFeedback { margin: 0 0 16px; font-size: 13px; color: var(--cr-text-secondary); &.error { color: var(--cr-status-danger); } }
+  .adminPagination { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; color: var(--cr-text-muted); font-size: 12px;
+    > div { display: flex; align-items: center; gap: 12px; }
+  }
+  .adminTextLink { border: 0; padding: 0; background: transparent; color: var(--cr-text-primary); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+  .statusText { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    &::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--cr-text-muted); }
+    &.active::before { background: var(--cr-status-success); }
+    &.disabled::before { background: var(--cr-status-danger); }
+  }
+  .operationsPage, .modelOperationsPage, .reconciliationPage, .tasksPage, .supportPage, .privacyOperationsPage { min-height: 0; }
+  .pageContent { width: 100%; max-width: none; margin: 0; padding: 0; }
+  .primaryButton { background: var(--cr-text-primary); color: var(--cr-surface); }
+  @media (max-width: 680px) { .adminHeading { align-items: start; } .adminToolbar input { min-width: 0; width: 100%; } .adminPagination { flex-wrap: wrap; } }
+}

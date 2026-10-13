@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="web_dashboard" name="shell-type"/>
+<title>CRUIO · 商业级云端 API 节点工作台</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+    }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-ground": "#f1f5f9",
+            "surface-muted": "#f8fafc",
+            "surface-card": "#ffffff",
+            "border-subtle": "#e2e8f0",
+            "border-active": "#cbd5e1",
+            "text-primary": "#0f172a",
+            "text-secondary": "#475569",
+            "text-muted": "#64748b",
+            "brand-primary": "#0f172a",
+            "brand-accent": "#2563eb",
+            "brand-accent-soft": "#eff6ff",
+            "brand-purple": "#4f46e5"
+          },
+          fontFamily: {
+            sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "PingFang SC", "Segoe UI", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#f1f5f9] font-sans text-text-primary antialiased min-h-screen">
+<!-- Top Refined Industrial Header -->
+<header class="fixed top-0 left-0 right-0 z-50 h-13 bg-white/95 backdrop-blur-md border-b border-border-subtle shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+<div class="h-13 w-full px-5 flex items-center justify-between gap-4">
+<!-- Left: Logo & Project Breadcrumb -->
+<div class="flex items-center gap-3.5 flex-shrink-0">
+<div class="flex items-center gap-2.5">
+<div class="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center font-mono font-bold text-xs shadow-sm">
+          C
+        </div>
+<span class="text-[13.5px] font-semibold text-slate-900 tracking-tight flex items-center gap-1.5">
+          CRUIO <span class="text-slate-400 font-normal">/</span> 商业管线工作台
+        </span>
+</div>
+<div class="h-4 w-px bg-slate-200"></div>
+<!-- Project Switcher Breadcrumb -->
+<div class="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200/80 text-slate-800 text-xs transition-all cursor-pointer border border-slate-200/60">
+<span class="text-slate-500 font-medium">项目 /</span>
+<span class="font-medium text-slate-900">雨夜暗杀篇·连续分镜</span>
+<span class="px-1.5 py-0.5 rounded bg-white text-[10px] text-slate-600 font-mono border border-slate-200">v2.4 LOCKED</span>
+<span class="material-symbols-outlined text-[14px] text-slate-400">expand_more</span>
+</div>
+<!-- Action History -->
+<div class="flex items-center gap-1 text-slate-500 ml-1">
+<button class="p-1 rounded hover:bg-slate-100 hover:text-slate-800 transition-colors" title="撤销 (Ctrl+Z)">
+<span class="material-symbols-outlined text-[16px]">undo</span>
+</button>
+<button class="p-1 rounded hover:bg-slate-100 hover:text-slate-800 transition-colors" title="重做 (Ctrl+Y)">
+<span class="material-symbols-outlined text-[16px]">redo</span>
+</button>
+</div>
+<!-- Canvas zoom -->
+<div class="flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-slate-200 text-[11px] font-mono text-slate-600 shadow-2xs">
+<span class="material-symbols-outlined text-[13px] text-slate-400">zoom_in</span>
+<span>100%</span>
+</div>
+</div>
+<!-- Right: Telemetry & Actions -->
+<div class="flex items-center gap-3 flex-shrink-0">
+<!-- Remote Concurrency -->
+<div class="flex items-center gap-2 px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 text-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+<span class="text-slate-600 font-mono text-[11px]">云端网关: <strong class="text-slate-900 font-semibold">6 组在线</strong> (无本地显存依赖)</span>
+</div>
+<!-- Gateway Balance Pill -->
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-md bg-white border border-slate-200 text-xs shadow-2xs">
+<span class="material-symbols-outlined text-[15px] text-amber-500">toll</span>
+<span class="text-slate-500 text-[11px]">算力可用:</span>
+<span class="font-mono font-bold text-slate-900">14,820 点</span>
+<button class="ml-1 text-[10px] text-blue-600 hover:underline">充值</button>
+</div>
+<div class="h-4 w-px bg-slate-200"></div>
+<!-- Action Buttons -->
+<button class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 text-slate-700 text-xs hover:bg-slate-50 transition-colors shadow-2xs font-medium" onclick="executeWorkflowModal()">
+<span class="material-symbols-outlined text-[15px] text-indigo-600">playlist_play</span>
+<span>分步排队 <kbd class="text-slate-400 font-mono text-[9px]">Ctrl+↵</kbd></span>
+</button>
+<button class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors shadow-sm" onclick="executeWorkflowModal()">
+<span class="material-symbols-outlined text-[15px] text-emerald-400">play_arrow</span>
+<span>运行当前管线</span>
+</button>
+<!-- User Avatar -->
+<div class="flex items-center gap-2 pl-1 border-l border-slate-200">
+<div class="w-7 h-7 rounded-full bg-slate-800 text-white font-medium text-xs flex items-center justify-center ring-1 ring-slate-300">
+          CR
+        </div>
+</div>
+</div>
+</div>
+</header>
+<!-- Left Sidebar Navigation -->
+<aside class="fixed left-0 top-13 bottom-0 w-60 bg-white border-r border-border-subtle z-40 flex flex-col justify-between py-3.5 px-3">
+<div class="flex flex-col gap-3">
+<!-- Section Tag -->
+<div class="px-2.5 py-0.5 flex items-center justify-between text-slate-400">
+<span class="font-mono text-[10px] tracking-wider uppercase font-semibold text-slate-500">工位空间 / STATIONS</span>
+<span class="material-symbols-outlined text-[14px] cursor-pointer hover:text-slate-700">add</span>
+</div>
+<nav class="flex flex-col gap-1 text-xs">
+<a class="px-2.5 py-2 rounded-md bg-slate-100 text-slate-900 font-medium flex items-center justify-between" href="#">
+<span class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+          创作流程画布
+        </span>
+<span class="font-mono text-[9px] text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">ACTIVE</span>
+</a>
+<a class="px-2.5 py-1.5 rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-between" href="#">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[15px] text-slate-400">auto_stories</span>
+          剧本与分镜资产
+        </span>
+<span class="font-mono text-[10px] text-slate-400">3镜</span>
+</a>
+<a class="px-2.5 py-1.5 rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-between" href="#">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[15px] text-slate-400">folder_open</span>
+          参考资产库 (不可变)
+        </span>
+<span class="font-mono text-[10px] text-slate-400">8包</span>
+</a>
+<a class="px-2.5 py-1.5 rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-between" href="#">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[15px] text-slate-400">pending_actions</span>
+          执行队列与门禁
+        </span>
+<span class="font-mono text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded">1待审核</span>
+</a>
+<a class="px-2.5 py-1.5 rounded-md text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all flex items-center justify-between" href="#">
+<span class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[15px] text-slate-400">receipt_long</span>
+          计费审计与日志
+        </span>
+</a>
+</nav>
+<div class="h-px bg-slate-200 my-1 mx-1"></div>
+<!-- Quick API Node Drawer -->
+<div class="px-2">
+<div class="flex items-center justify-between text-slate-400 mb-2">
+<span class="font-mono text-[10px] tracking-wider uppercase font-semibold text-slate-500">工位原子快速选用</span>
+<span class="text-[10px] font-mono text-slate-400">C01-C09</span>
+</div>
+<div class="flex flex-col gap-1 text-[11px] font-mono">
+<div class="flex items-center justify-between px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors">
+<span>+ C01 剧本创作</span>
+<span class="text-[9px] text-slate-500 bg-white px-1 border border-slate-200 rounded">LLM</span>
+</div>
+<div class="flex items-center justify-between px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors">
+<span>+ C02 分镜拆解</span>
+<span class="text-[9px] text-slate-500 bg-white px-1 border border-slate-200 rounded">AGENT</span>
+</div>
+<div class="flex items-center justify-between px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors">
+<span>+ C05 图片生图</span>
+<span class="text-[9px] text-blue-600 bg-blue-50 px-1 border border-blue-200 rounded">FLUX/SD</span>
+</div>
+<div class="flex items-center justify-between px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors">
+<span>+ C06 视频生成</span>
+<span class="text-[9px] text-indigo-600 bg-indigo-50 px-1 border border-indigo-200 rounded">RUNWAY/即梦</span>
+</div>
+<div class="flex items-center justify-between px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors">
+<span>+ C09 封装工作流</span>
+<span class="text-[9px] text-purple-700 bg-purple-50 px-1 border border-purple-200 rounded">PIPELINE</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Gateway Health Card -->
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs flex flex-col gap-1.5">
+<div class="flex items-center justify-between">
+<span class="font-medium text-slate-800 text-[11px] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+        API 网关集群健康
+      </span>
+<span class="font-mono text-[10px] text-emerald-700 font-semibold">99.98%</span>
+</div>
+<div class="text-[10px] text-slate-500 font-mono flex items-center justify-between">
+<span>平均调度延时</span>
+<span class="text-slate-700 font-semibold">320ms</span>
+</div>
+<div class="w-full bg-slate-200 h-1 rounded-full overflow-hidden">
+<div class="bg-blue-600 h-full w-full"></div>
+</div>
+</div>
+</aside>
+<!-- Main Workspace Stage -->
+<div class="pl-60">
+<main class="relative w-full pt-13 pb-24 min-h-screen">
+<!-- Top Hub: Project Brief & Telemetry & Filter Switcher -->
+<section class="w-full px-8 pt-5 pb-5 bg-white border-b border-border-subtle shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+<div class="max-w-[1480px] mx-auto flex flex-col gap-4">
+<!-- Row 1: Project Metadata & Global Guardrails -->
+<div class="flex flex-wrap items-center justify-between gap-4">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-2 text-xs text-slate-500">
+<span class="font-mono text-[11px] text-blue-600 font-bold bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded">SPEC · V3.8 CLOUD DIRECT</span>
+<span>•</span>
+<span class="flex items-center gap-1 text-slate-600"><span class="material-symbols-outlined text-[14px] text-emerald-600">verified</span> 纯云端 API 网关架构 (零本地显存负担)</span>
+<span>•</span>
+<span class="text-slate-500">已连通: Dreamina 3.0 / Flux.1 Pro / Runway Gen-3 / MiniMax / Kling 1.5</span>
+</div>
+<h1 class="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              商业短剧连续创作工位画布 (C01 - C09)
+              <span class="text-xs font-normal text-slate-500 px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
+                幂等性参数哈希防重已就绪
+              </span>
+</h1>
+</div>
+<!-- Project Constraints Pill Box -->
+<div class="flex items-center gap-2 text-xs">
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200">
+<span class="text-slate-500">画幅规范:</span>
+<span class="font-mono font-semibold text-slate-800">16:9 (1920×1080)</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200">
+<span class="text-slate-500">目标片长:</span>
+<span class="font-mono font-semibold text-slate-800">12.5s (3 镜头)</span>
+</div>
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-md bg-slate-50 border border-slate-200">
+<span class="text-slate-500">预算上限:</span>
+<span class="font-mono font-semibold text-amber-600">≤ 75 算力分</span>
+</div>
+</div>
+</div>
+<!-- Row 2: Live Gateway Telemetry Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+<!-- Balance -->
+<div class="p-3 rounded-lg bg-slate-50/80 border border-slate-200 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] text-slate-500">租户算力池余额</span>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-mono text-base font-bold text-slate-900">14,820</span>
+<span class="text-[10px] text-slate-500">点 (~¥148.20)</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-mono border border-emerald-200">充裕</span>
+</div>
+<!-- Active Concurrency -->
+<div class="p-3 rounded-lg bg-slate-50/80 border border-slate-200 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] text-slate-500">云端并发通道调度</span>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-mono text-base font-bold text-slate-900">4 / 16</span>
+<span class="text-[10px] text-slate-500">通道活跃</span>
+</div>
+</div>
+<div class="w-16 bg-slate-200 h-1.5 rounded-full overflow-hidden">
+<div class="bg-blue-600 h-full" style="width: 25%"></div>
+</div>
+</div>
+<!-- Gates & Audits -->
+<div class="p-3 rounded-lg bg-slate-50/80 border border-slate-200 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] text-slate-500">版本采用与门禁</span>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-semibold text-slate-900">C02 待人工确认</span>
+<span class="text-[10px] text-amber-600 font-mono">[Gate 1]</span>
+</div>
+</div>
+<span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+</div>
+<!-- Idempotency & Cache -->
+<div class="p-3 rounded-lg bg-slate-50/80 border border-slate-200 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[11px] text-slate-500">幂等缓存命中率</span>
+<div class="flex items-baseline gap-1.5 mt-0.5">
+<span class="font-mono text-base font-bold text-slate-900">92.4%</span>
+<span class="text-[10px] text-slate-500">已省 480 点</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-[18px] text-slate-400">verified</span>
+</div>
+</div>
+<!-- Row 3: Filter Switcher & Execution Status Bar -->
+<div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+<div class="flex items-center gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200/80">
+<button class="filter-btn active-filter px-3 py-1 rounded text-xs transition-all bg-white text-slate-900 font-medium shadow-2xs" id="filter-all" onclick="filterNodes('all')">
+              全部工位规范 (C01 - C09)
+            </button>
+<button class="filter-btn px-3 py-1 rounded text-xs transition-all text-slate-600 hover:text-slate-900" id="filter-creation" onclick="filterNodes('creation')">
+              创作原子工位 (C01 - C08)
+            </button>
+<button class="filter-btn px-3 py-1 rounded text-xs transition-all text-slate-600 hover:text-slate-900" id="filter-composite" onclick="filterNodes('composite')">
+              复合与复用工位 (C09)
+            </button>
+</div>
+<!-- Color Coding Legend -->
+<div class="flex items-center gap-3.5 text-xs text-slate-500 font-mono">
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-400"></span>本地/草稿/门禁操作 (0点)</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-600"></span>远程 API 推演调用 (计费)</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>导演人工审核门禁</span>
+<span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>不可变版本锁定 (Lock)</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Main 9 Standard Stations Grid -->
+<div class="max-w-[1480px] mx-auto px-8 pt-6 flex flex-col gap-6">
+<!-- ==================== ROW 1: C01 ~ C03 ==================== -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 node-group" data-group="creation">
+<!-- C01 剧本工位 (Script) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C01</span>
+<h2 class="text-sm font-bold text-slate-900">剧本创作</h2>
+<span class="text-[10px] font-mono text-slate-400">SCRIPT</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 空闲</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">采用: v1.2</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">审核: 已过审</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">Fresh</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">LLM 网关</span>
+</div>
+<!-- Mode Selector Switcher -->
+<div class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg text-center text-xs">
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">导入</span>
+<span class="py-1 rounded bg-white text-slate-900 font-medium shadow-2xs cursor-pointer">手动编辑</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">AI创作</span>
+<span class="py-1 rounded text-blue-600 font-medium cursor-pointer">AI改写</span>
+</div>
+<!-- Ports Declaration -->
+<div class="flex items-center justify-between text-[11px] font-mono px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-600">
+<span>输入插槽: [故事背景/大纲文本]</span>
+<span class="text-slate-400">输出: 标准场记文本</span>
+</div>
+<!-- Content Workspace Box -->
+<div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-2">
+<div class="flex items-center justify-between text-xs">
+<span class="font-mono text-slate-700 font-semibold">正文编辑 (原稿快照留存)</span>
+<span class="text-[10px] font-mono text-slate-500">DeepSeek-V3 · 842 字</span>
+</div>
+<div class="text-xs text-slate-800 leading-relaxed bg-white p-2.5 rounded border border-slate-200 shadow-2xs font-mono">
+                【场景：雨夜上海法租界窄巷】<br/>
+                林深收紧风衣领口，快步穿行在湿漉反光的青石板路上。身后传来急促的皮鞋踏水声与金属机簧轻响。他没有回头，右手悄然探入内侧口袋，握紧了那枚带血的加密密匙盘……
+              </div>
+<div class="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+<span class="text-emerald-700 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>语法结构自检通过</span>
+<span>台词/旁白已结构化索引</span>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-slate-400">info</span>
+<span>编辑与切换版本零扣点；仅触发远程改写生成新版本时扣点。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              保存修改 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs">
+<span class="material-symbols-outlined text-[14px]">auto_fix_high</span>
+<span>AI 生成新版本 (-2 点)</span>
+</button>
+</div>
+</article>
+<!-- C02 分镜工位 (Storyboard) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C02</span>
+<h2 class="text-sm font-bold text-slate-900">分镜拆解</h2>
+<span class="text-[10px] font-mono text-slate-400">STORYBOARD</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 待确认</span>
+<span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">采用: 2/3 镜头</span>
+<span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">门禁: 等待导演</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">Fresh</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">结构化 Agent</span>
+</div>
+<!-- Ports Declaration -->
+<div class="flex items-center justify-between text-[11px] font-mono px-2 py-1 rounded bg-slate-50 border border-slate-200 text-slate-600">
+<span>输入: [C01 剧本 v1.2]</span>
+<span class="text-slate-400">输出: 具名 Shot 集合 (稳定 ID)</span>
+</div>
+<!-- Shot List Table with stable Shot ID & Duration -->
+<div class="flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[11px] text-slate-500 font-mono px-1">
+<span>镜头清单 (3 镜 · 合计 10.5s)</span>
+<span class="text-blue-600 cursor-pointer hover:underline">批量全选</span>
+</div>
+<!-- Shot 1 -->
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+<div class="flex items-center gap-2">
+<input checked="" class="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+<span class="font-mono font-bold text-slate-900">#shot_01</span>
+<span class="px-1.5 py-0.2 rounded bg-white text-[10px] text-slate-600 border border-slate-200">特写</span>
+<span class="text-slate-800 truncate max-w-[110px]">风衣口袋与加密钥匙</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="font-mono text-[11px] text-slate-500">3.0s</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 text-[10px] font-mono border border-emerald-200">已过门禁</span>
+</div>
+</div>
+<!-- Shot 2 -->
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+<div class="flex items-center gap-2">
+<input checked="" class="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+<span class="font-mono font-bold text-slate-900">#shot_02</span>
+<span class="px-1.5 py-0.2 rounded bg-white text-[10px] text-slate-600 border border-slate-200">全景</span>
+<span class="text-slate-800 truncate max-w-[110px]">雨夜法租界霓虹水泊</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="font-mono text-[11px] text-slate-500">4.5s</span>
+<span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 text-[10px] font-mono border border-amber-200">待确认</span>
+</div>
+</div>
+<!-- Shot 3 -->
+<div class="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+<div class="flex items-center gap-2">
+<input class="rounded text-blue-600 focus:ring-0 w-3.5 h-3.5" type="checkbox"/>
+<span class="font-mono font-bold text-slate-900">#shot_03</span>
+<span class="px-1.5 py-0.2 rounded bg-white text-[10px] text-slate-600 border border-slate-200">跟拍</span>
+<span class="text-slate-800 truncate max-w-[110px]">黑影逼近踏碎水洼</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="font-mono text-[11px] text-slate-500">3.0s</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 text-[10px] font-mono">草稿</span>
+</div>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-amber-500">gavel</span>
+<span>「确认选中」为强制门禁，下游图片与视频仅拉取已确认镜头。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              确认选中镜头 (门禁·0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs">
+<span class="material-symbols-outlined text-[14px]">splitscreen</span>
+<span>智能拆分分镜 (-4 点)</span>
+</button>
+</div>
+</article>
+<!-- C03 素材工位 (Asset) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C03</span>
+<h2 class="text-sm font-bold text-slate-900">参考素材包</h2>
+<span class="text-[10px] font-mono text-slate-400">ASSETS</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 就绪</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">锁定: 不可变</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">审核: 免审</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">Hash 验签</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">不可变资产库</span>
+</div>
+<!-- Organization Mode Switcher -->
+<div class="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg text-center text-xs">
+<span class="py-1 rounded bg-white text-slate-900 font-medium shadow-2xs cursor-pointer">角色包</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">场景包</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">道具产品包</span>
+</div>
+<!-- Strict Usage Declarations Ports -->
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-2">
+<div class="flex items-center justify-between text-[11px] font-mono">
+<span class="text-slate-700 font-semibold">具名输出端口 (杜绝盲目全量发送)</span>
+<span class="text-blue-600">3 已绑定</span>
+</div>
+<div class="grid grid-cols-3 gap-2">
+<!-- Asset 1 -->
+<div class="relative rounded-lg overflow-hidden bg-slate-200 aspect-square border border-slate-300">
+<div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBi17cgWaW_PfE32_1E4CMLgqRbNnFmcLqk1EypsGgVLZADvEPkRaqm40I3FBT5cRJIt_NcCKbUkqoqakEV1R0TX05mk0ayv-zCKzpTLAAyyDWif5kWloU1ZoODaFi_BXQ3gDI6EkOIQ-DdjZGiZpiGvHC1fJdSJWs0JYeYZ1xwBluREqWAfj8V--3TmytL7AD0_LAUuaNv7XsBKHCDX4NHTMUOiE6N87FVu2aGEzVwBMW4dspjjpOD')"></div>
+<span class="absolute bottom-1 left-1 px-1 py-0.2 rounded bg-slate-900/80 text-[8px] font-mono text-white">角色正面三视</span>
+</div>
+<!-- Asset 2 -->
+<div class="relative rounded-lg overflow-hidden bg-slate-200 aspect-square border border-slate-300">
+<div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDU2P4LNIXJy-MpfzpsSDB7yqD0a82kX_0868y45IG1Frfq6eqRHgn5y95cVYRdz9k9RgGqa4Zhteb7gx0Lw0aVspHs8FLorbqrDB6VO6PSFI-pNkE4RyX54ms0S6ROqEf4wIv0GnakAyOkTpQG_C86kRhGjr-ovMIWySuH1p0LV4XI3Iazasu8bJ4b15wbgpMUjU4a8C-8a7F6WsdKwVzdvToG5Y94UpvjsTya7ofiEVSfnusSImOc')"></div>
+<span class="absolute bottom-1 left-1 px-1 py-0.2 rounded bg-slate-900/80 text-[8px] font-mono text-white">冷调雨夜氛围</span>
+</div>
+<!-- Add slot -->
+<div class="rounded-lg border border-dashed border-slate-300 flex flex-col items-center justify-center p-2 text-slate-400 hover:border-slate-400 hover:text-slate-600 cursor-pointer bg-white transition-colors">
+<span class="material-symbols-outlined text-[18px]">add_photo_alternate</span>
+<span class="text-[9px] mt-0.5 font-mono">绑定新素材</span>
+</div>
+</div>
+<!-- Output ports mapping -->
+<div class="flex flex-wrap gap-1 text-[10px] font-mono pt-1 border-t border-slate-200">
+<span class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">→ [首帧参考插槽]</span>
+<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">→ [风格调色卡]</span>
+<span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">→ [主体特征ID]</span>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
+<span>素材引用以 sha256 锁定，上游修改绝不隐式污染本工程。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              选择素材包 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">auto_fix_normal</span>
+<span>提取派生资产 (0 点)</span>
+</button>
+</div>
+</article>
+</div>
+<!-- ==================== ROW 2: C04 ~ C06 ==================== -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 node-group" data-group="creation">
+<!-- C04 导演工位 (Director) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C04</span>
+<h2 class="text-sm font-bold text-slate-900">导演意图</h2>
+<span class="text-[10px] font-mono text-slate-400">DIRECTOR</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 就绪</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">采用: 方案A</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">编译: 已映射</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">Fresh</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">意图编译器</span>
+</div>
+<!-- 4 Major Tool Tabs -->
+<div class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg text-center text-xs">
+<span class="py-1 rounded bg-white text-slate-900 font-medium shadow-2xs cursor-pointer">镜头景别</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">运镜轨迹</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">光影视效</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">情绪表演</span>
+</div>
+<!-- Natural Language One-Sentence Prompt & Structured Mapping -->
+<div class="flex flex-col gap-2">
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+<span class="font-mono text-[10px] text-slate-500 block mb-1">一句话核心拍摄要求</span>
+<p class="text-slate-800 font-medium leading-relaxed">
+                  “雨夜窄巷快速跟拍推镜头，低机位仰角捕捉风衣摆动与水洼溅射，背景霓虹高光虚化。”
+                </p>
+</div>
+<!-- Vendor Target API Expression Specification -->
+<div class="grid grid-cols-2 gap-2 text-xs font-mono">
+<div class="p-2 rounded bg-slate-50 border border-slate-200">
+<span class="text-[10px] text-slate-500 block">原生参数转换</span>
+<span class="font-bold text-slate-800 text-[11px]">Camera: Pan Low / Push 1.4x</span>
+<span class="text-[9px] text-emerald-700 block mt-0.5">Runway / 即梦 强约束支持</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200">
+<span class="text-[10px] text-slate-500 block">意图软约束封装</span>
+<span class="font-bold text-slate-800 text-[11px]">Film Still, 35mm, Rain Blur</span>
+<span class="text-[9px] text-blue-600 block mt-0.5">Prompt 自动补权</span>
+</div>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-slate-400">info</span>
+<span>导演参数配置属于本地元数据编辑，保存与前端轨迹示意 0 点扣费。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              保存导演设置 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">view_in_ar</span>
+<span>查看轨迹与构图示意 (0 点)</span>
+</button>
+</div>
+</article>
+<!-- C05 图片工位 (Image) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C05</span>
+<h2 class="text-sm font-bold text-slate-900">图片生成</h2>
+<span class="text-[10px] font-mono text-slate-400">IMAGE GEN</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 就绪</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">锁定: v1.2 已采用</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">审核: 已通过</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">Seed: 89412</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">Flux.1 Pro</span>
+</div>
+<!-- Task Mode Selector -->
+<div class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg text-center text-xs">
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">文生图</span>
+<span class="py-1 rounded bg-white text-slate-900 font-medium shadow-2xs cursor-pointer">参考生图</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">局部编辑</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">扩图</span>
+</div>
+<!-- Candidates Gallery & Version Choice Mechanism -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between text-[11px] font-mono text-slate-500">
+<span>候选版本对比与选用 (16:9 · 1920×1080)</span>
+<span class="text-slate-700">4 组候选</span>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<!-- Locked Version -->
+<div class="relative rounded-lg overflow-hidden aspect-video bg-slate-200 border-2 border-emerald-500">
+<div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDURla6gNJbxXo0urNuuMNGxkynZIQ0NmOyuTwXhcbcOilVy3hampvJXMRXdFwg-Boir_oC-pgW699OS7rNJhe9u9Qi0e5Zi-7WmdBg-SeL5sAaojeeSZ3MFMmZSALIQLSsC0tR2X8Nd93xM3f3FXNZUNJM4F34rmLuE0z6gxlqNRqyATxsdPPbO_1XRl0HjnxH2T4j2nXaAFrpqRuuU5-qxexuPQZ1sGyZe0sj-vjxIMi7IcWoBeLA')"></div>
+<span class="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-emerald-600 text-white font-mono text-[9px] flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[11px]">lock</span> v1.2 已采用
+                  </span>
+<span class="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-slate-900/80 text-[8px] font-mono text-white">Seed: 89412</span>
+</div>
+<!-- Candidate 2 -->
+<div class="relative rounded-lg overflow-hidden aspect-video bg-slate-200 border border-slate-300 group">
+<div class="w-full h-full bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDEe6fRUBGuMQGdy7sbOt8IEiflMCzbTjMsfZx21K2aKGZfyNSRsChc7fM0JVCTc6qKfR4_FaKsDvPNM3CAomOKX99ctk40FeslJ8Mu96j8H3HtUBYVNACLGQWLNExeFY2UAFAW2C-OUPA6APbvg3JjIl5hejMickYlwuAVQHvIJ-ffEOfTtHzz44Msv3jIqK31VRPMQzkTTTK4hCw7sqZ54H9Ou2tv5mMaA-Imcy4NLa7ebSrW6A9U')"></div>
+<span class="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-slate-900/80 text-white font-mono text-[9px]">v1.3 备选</span>
+<button class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-medium gap-1">
+<span class="material-symbols-outlined text-[14px]">check</span> 切换为此版本 (0点)
+                  </button>
+</div>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-blue-600">verified</span>
+<span>新生成产生独立候选分支，不破坏下游节点绑定的旧版本锁。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              采用当前版本 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs">
+<span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+<span>生成图片候选 (-6 点)</span>
+</button>
+</div>
+</article>
+<!-- C06 视频工位 (Video) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C06</span>
+<h2 class="text-sm font-bold text-slate-900">视频生成</h2>
+<span class="text-[10px] font-mono text-slate-400">VIDEO DYNAMICS</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 1已就绪</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">批量: 逐镜生成</span>
+<span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">审核: 镜2待确认</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">1080P 24F</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">Runway Gen-3</span>
+</div>
+<!-- Video Generation Modes -->
+<div class="grid grid-cols-4 gap-1 p-1 bg-slate-100 rounded-lg text-center text-xs">
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">单镜头</span>
+<span class="py-1 rounded bg-white text-slate-900 font-medium shadow-2xs cursor-pointer">集合批量</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">首尾过渡</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">运镜延展</span>
+</div>
+<!-- Video Player Stage & Named Slots Comparison -->
+<div class="flex flex-col gap-2">
+<div class="relative rounded-lg overflow-hidden aspect-video bg-slate-900 border border-slate-300">
+<div class="w-full h-full bg-cover bg-center opacity-85" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBOBoNp6NY79T87q3xWw6TmTxD2GRkSGRigQoJQHeMU6EPf418yRJ6PFwello_2AIDyOX8cq7Ysbe_IwM-eRIhche0jUL991wfVuYQPxcQ8fJy9Klvn5Y_0k1nNxM9YDpRlDkfsgJyYUUpZrxgIdQ9psc8At5j4kdG2TNUpxGKh7bZWH78ysVrZ3GyQvIhm7GzPOikEuq1wapkBIKUMCea58wTrVf5wMlwb61vF2E342nnW5l2mJleY')"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="w-9 h-9 rounded-full bg-white/90 text-slate-900 flex items-center justify-center shadow hover:scale-105 transition-transform cursor-pointer">
+<span class="material-symbols-outlined text-[20px]">play_arrow</span>
+</div>
+</div>
+<div class="absolute bottom-1.5 left-2 px-1.5 py-0.5 rounded bg-slate-900/80 text-white font-mono text-[9px]">
+                  #shot_01 · 5.0s / 计划 5.0s (已渲染)
+                </div>
+<div class="absolute top-1.5 right-2 px-1.5 py-0.5 rounded bg-emerald-600/90 text-white font-mono text-[9px]">
+                  云端渲染就绪
+                </div>
+</div>
+<!-- Named Reference Slots Scope & Batch Status -->
+<div class="p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs flex flex-col gap-1">
+<div class="flex items-center justify-between font-mono text-[11px]">
+<span class="text-slate-700">具名插槽: [首帧 C05.v1.2] + [角色特征包]</span>
+<span class="text-emerald-700 font-semibold">原音保留: 关闭</span>
+</div>
+<div class="flex items-center justify-between text-[10px] text-slate-500 font-mono">
+<span>批量队列: 已勾选 Shot #01 (5s), Shot #02 (4.5s)</span>
+<span class="font-semibold text-slate-800">预计: ~24 点</span>
+</div>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-slate-400">info</span>
+<span>支持先跑草稿分辨率以低费用试看，满意后再触发高清渲染。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              草稿试看 (-2 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs">
+<span class="material-symbols-outlined text-[14px]">movie</span>
+<span>生成选中镜头 (-12 点/镜)</span>
+</button>
+</div>
+</article>
+</div>
+<!-- ==================== ROW 3: C07 ~ C09 ==================== -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 node-group" data-group="creation">
+<!-- C07 声音工位 (Audio) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C07</span>
+<h2 class="text-sm font-bold text-slate-900">声音设计</h2>
+<span class="text-[10px] font-mono text-slate-400">AUDIO &amp; VOICE</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 就绪</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">采用: Take #02</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">对齐: 00:04.2</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">24kHz WAV</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">MiniMax TTS</span>
+</div>
+<!-- 3 Independent Creative Modes -->
+<div class="grid grid-cols-3 gap-1 p-1 bg-slate-100 rounded-lg text-center text-xs">
+<span class="py-1 rounded bg-white text-slate-900 font-medium shadow-2xs cursor-pointer">配音 (TTS)</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">音乐 (BGM)</span>
+<span class="py-1 rounded text-slate-600 hover:text-slate-900 cursor-pointer">环境音效 (SFX)</span>
+</div>
+<!-- TTS Configuration & Utterance Form -->
+<div class="flex flex-col gap-2">
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+<span class="font-mono text-[10px] text-slate-500 block mb-1">台词输入 (已绑定 #shot_01 · utterance_01)</span>
+<p class="text-slate-800 font-medium">
+                  “时间到了。密码一旦激活，就没有人能够全身而退。”
+                </p>
+</div>
+<!-- Speaker & Emotion Adjusters -->
+<div class="grid grid-cols-2 gap-2 text-xs font-mono">
+<div class="p-2 rounded bg-slate-50 border border-slate-200">
+<span class="text-[10px] text-slate-500 block">说话人音色</span>
+<span class="font-semibold text-slate-800 text-[11px]">沉稳中年悬疑男声</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200">
+<span class="text-[10px] text-slate-500 block">语速与情绪</span>
+<span class="font-semibold text-slate-800 text-[11px]">0.95x · 压抑低语</span>
+</div>
+</div>
+<!-- Audio Waveform Audition Strip -->
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-[11px] font-mono">
+<span class="text-blue-600 font-semibold">Take #02 (已采用)</span>
+<span class="text-slate-500">00:04.2 / 00:04.2</span>
+</div>
+<div class="w-full h-6 flex items-center gap-1 px-1">
+<span class="w-1 bg-slate-700 rounded-full h-2"></span>
+<span class="w-1 bg-slate-700 rounded-full h-4"></span>
+<span class="w-1 bg-slate-700 rounded-full h-5"></span>
+<span class="w-1 bg-blue-600 rounded-full h-6"></span>
+<span class="w-1 bg-blue-600 rounded-full h-3"></span>
+<span class="w-1 bg-blue-600 rounded-full h-5"></span>
+<span class="w-1 bg-slate-700 rounded-full h-6"></span>
+<span class="w-1 bg-slate-700 rounded-full h-4"></span>
+<span class="w-1 bg-slate-700 rounded-full h-2"></span>
+<span class="w-1 bg-slate-700 rounded-full h-5"></span>
+<span class="w-1 bg-slate-700 rounded-full h-3"></span>
+<span class="w-1 bg-slate-400 rounded-full h-2"></span>
+<span class="w-1 bg-slate-400 rounded-full h-4"></span>
+<span class="w-1 bg-slate-400 rounded-full h-1"></span>
+</div>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-slate-400">info</span>
+<span>商业 TTS 按字数精确计费 (~1 点/百字)；试听本地缓存 0 点。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              试听播放 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs">
+<span class="material-symbols-outlined text-[14px]">graphic_eq</span>
+<span>生成配音 (-1 点/百字)</span>
+</button>
+</div>
+</article>
+<!-- C08 剪辑工位 (Timeline) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-slate-900 text-white font-mono text-[11px] font-bold">C08</span>
+<h2 class="text-sm font-bold text-slate-900">剪辑成片</h2>
+<span class="text-[10px] font-mono text-slate-400">TIMELINE</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">执行: 就绪</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">版本: 全部锁定</span>
+<span class="px-1.5 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-200">字幕: 已对齐</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">12.5s</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-slate-50 text-slate-600 text-[10px] font-mono border border-slate-200">云端 FFmpeg</span>
+</div>
+<!-- Multi-track Timeline Summary -->
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between text-[11px] font-mono">
+<span class="text-slate-600">多轨时间线摘要 (12.5s · 3 镜头)</span>
+<span class="text-emerald-700 font-medium">版本锁无冲突</span>
+</div>
+<!-- Visual Tracks -->
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-1.5">
+<!-- V1 Track -->
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] text-slate-500 w-6">V1</span>
+<div class="flex-1 grid grid-cols-12 gap-1 h-5">
+<div class="col-span-5 bg-slate-800 text-white rounded text-[8px] font-mono flex items-center justify-center">Shot 01 (5s)</div>
+<div class="col-span-4 bg-slate-700 text-white rounded text-[8px] font-mono flex items-center justify-center">Shot 02 (4.5s)</div>
+<div class="col-span-3 bg-slate-600 text-white rounded text-[8px] font-mono flex items-center justify-center">Shot 03 (3s)</div>
+</div>
+</div>
+<!-- A1 Track (Voice) -->
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] text-slate-500 w-6">A1</span>
+<div class="flex-1 grid grid-cols-12 gap-1 h-4">
+<div class="col-span-5 bg-blue-600 text-white rounded text-[8px] font-mono flex items-center justify-center">台词 TTS (4.2s)</div>
+<div class="col-span-7 bg-slate-200 rounded text-[8px] font-mono flex items-center px-1 text-slate-400">静音间歇</div>
+</div>
+</div>
+<!-- A2 Track (BGM) -->
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] text-slate-500 w-6">A2</span>
+<div class="flex-1 h-4 bg-slate-200 rounded text-[8px] font-mono flex items-center px-1.5 text-slate-600">
+                    雨夜悬疑氛围配乐 (循环音轨 -14dB)
+                  </div>
+</div>
+</div>
+<!-- Pre-export Check Checklist -->
+<div class="grid grid-cols-3 gap-1 text-[10px] font-mono text-center">
+<span class="p-1 rounded bg-slate-50 border border-slate-200 text-slate-700">淡入淡出 ✓</span>
+<span class="p-1 rounded bg-slate-50 border border-slate-200 text-slate-700">响度归一化 ✓</span>
+<span class="p-1 rounded bg-slate-50 border border-slate-200 text-slate-700">字幕自动烧录 ✓</span>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-slate-400">info</span>
+<span>工程拖拽排版免费；仅在打包压制导出最终 1080P 成片时扣点。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors">
+              打开剪辑工程 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs">
+<span class="material-symbols-outlined text-[14px]">file_download</span>
+<span>渲染导出成片 (-5 点)</span>
+</button>
+</div>
+</article>
+<!-- C09 复合与复用工作流工位 (Workflow) -->
+<article class="p-5 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col justify-between hover:border-slate-300 transition-all node-group" data-group="composite">
+<div class="flex flex-col gap-3.5">
+<!-- Header with Code & 4 Status Tags -->
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-2">
+<span class="px-1.5 py-0.5 rounded bg-purple-700 text-white font-mono text-[11px] font-bold">C09</span>
+<h2 class="text-sm font-bold text-slate-900">封装工作流</h2>
+<span class="text-[10px] font-mono text-slate-400">COMPOSITE PIPELINE</span>
+</div>
+<div class="flex items-center gap-1.5 mt-1.5 text-[10px] font-mono">
+<span class="px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">v1.0.0 发布版</span>
+<span class="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">预算保护: 激活</span>
+<span class="px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">门禁点: 2处</span>
+<span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-500">复用 1,420次</span>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-mono border border-purple-200">固定版本契约</span>
+</div>
+<!-- Workflow Description Card -->
+<div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-xs">
+<span class="font-bold text-slate-900">商业短剧全流程自动化流水线</span>
+<span class="font-mono text-[10px] text-purple-700 font-semibold">LOCKED</span>
+</div>
+<p class="text-[11px] text-slate-600 leading-relaxed">
+                封装从原始文本到成片剪辑的级联管线。内置分镜审阅与成片压制双重门禁，中途未过审自动挂起。
+              </p>
+</div>
+<!-- Internal Sub-nodes Pipeline Visualization with Gates -->
+<div class="flex flex-col gap-1.5">
+<span class="text-[11px] font-mono text-slate-500">公开契约: 内部多阶段与门禁点透明可见</span>
+<div class="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-mono">
+<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-800 text-[11px]">C01 剧本</span>
+<span class="text-slate-400">→</span>
+<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-800 text-[11px]">C02 分镜</span>
+<span class="text-amber-600 font-bold text-[10px] bg-amber-50 px-1 rounded border border-amber-200" title="人工审核门禁">[Gate]</span>
+<span class="text-slate-400">→</span>
+<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-800 text-[11px]">C06 视频</span>
+<span class="text-slate-400">→</span>
+<span class="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-800 text-[11px]">C08 剪辑</span>
+</div>
+</div>
+<!-- Inlets & Outlets Contract -->
+<div class="grid grid-cols-2 gap-2 text-xs font-mono">
+<div class="p-2 rounded bg-slate-50 border border-slate-200">
+<span class="text-[10px] text-slate-500 block">公开入参插槽</span>
+<span class="text-slate-800 font-semibold block truncate">剧本草稿 / 角色素材包</span>
+</div>
+<div class="p-2 rounded bg-slate-50 border border-slate-200">
+<span class="text-[10px] text-slate-500 block">全链路预估耗费</span>
+<span class="text-blue-600 font-bold block">48 ~ 64 算力分</span>
+</div>
+</div>
+<!-- Spec Reminder -->
+<div class="text-[11px] text-slate-500 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px] text-amber-500">security</span>
+<span>执行前强制进行预算上限预留，任何阶段超支自动中断。</span>
+</div>
+</div>
+<!-- Bottom Actions with Exact Pricing -->
+<div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+<button class="px-3 py-1.5 rounded bg-slate-100 hover:bg-slate-200/70 text-xs font-medium text-slate-700 transition-colors" onclick="openSpecModal()">
+              查看内部过程 (0 点)
+            </button>
+<button class="px-3 py-1.5 rounded bg-slate-900 hover:bg-slate-800 text-xs font-medium text-white transition-colors flex items-center gap-1 shadow-2xs" onclick="executeWorkflowModal()">
+<span class="material-symbols-outlined text-[14px]">account_tree</span>
+<span>运行此工作流 (-48~64 点)</span>
+</button>
+</div>
+</article>
+</div>
+<!-- ==================== C01 - C09 AUDIT MATRIX TABLE ==================== -->
+<section class="p-6 rounded-xl bg-white border border-border-subtle shadow-sm flex flex-col gap-4 mt-2">
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+<div>
+<div class="flex items-center gap-2">
+<span class="font-mono text-[10px] text-blue-600 font-bold bg-blue-50 border border-blue-200 px-1.5 py-0.2 rounded uppercase">AUDIT MATRIX</span>
+<span class="text-slate-300">•</span>
+<span class="text-xs font-semibold text-slate-700">CRUIO 纯 API 节点运行边界与计费结算审计看板</span>
+</div>
+<p class="text-xs text-slate-500 mt-1">
+              按《CRUIO 节点与工作流设计规范》，全站杜绝模糊跑卡。区分零计费本地操作与远程 API 真实计费，所有产出均具备版本持久化策略。
+            </p>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-1 rounded bg-slate-100 text-xs font-mono text-slate-700 border border-slate-200">幂等保障: 严格启用</span>
+<span class="px-2.5 py-1 rounded bg-slate-100 text-xs font-mono text-slate-700 border border-slate-200">版本锁机制: 强制执行</span>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs">
+<thead>
+<tr class="border-b border-slate-200 font-mono text-[11px] text-slate-500 bg-slate-50/60">
+<th class="py-2.5 px-3 font-semibold">节点工位与编号</th>
+<th class="py-2.5 px-3 font-semibold">远程对接商业 API 范畴</th>
+<th class="py-2.5 px-3 font-semibold">零费用动作 (本地/草稿/门禁)</th>
+<th class="py-2.5 px-3 font-semibold">真实计费动作 (独立运行)</th>
+<th class="py-2.5 px-3 font-semibold">参考调用点数</th>
+<th class="py-2.5 px-3 font-semibold">版本与归档契约</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100 text-slate-800 font-sans">
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C01 剧本创作</td>
+<td class="py-2.5 px-3">大语言模型 (DeepSeek-V3 / GPT-4o)</td>
+<td class="py-2.5 px-3 text-slate-600">手动编辑正文、语法自检、切换已有快照</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">AI 扩写与分场改写推演</td>
+<td class="py-2.5 px-3 font-mono">1 ~ 2 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">沉淀为 v1.0, v1.1 独立文本快照</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C02 分镜拆解</td>
+<td class="py-2.5 px-3">结构化拆分 Agent · 镜头参数表</td>
+<td class="py-2.5 px-3 text-slate-600">手动增删镜头、调景别、确认选中(门禁)</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">全剧本一键 AI 拆解分镜</td>
+<td class="py-2.5 px-3 font-mono">3 ~ 5 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">形成具名 shot_id 的只读镜头树</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C03 参考素材</td>
+<td class="py-2.5 px-3">不可变素材仓 · 格式归一化网关</td>
+<td class="py-2.5 px-3 text-slate-600">素材打标、声明用途插槽、本地直出</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">云端去底、超分锐化 (按需)</td>
+<td class="py-2.5 px-3 font-mono">0 ~ 1 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">sha256 不可变 Asset-Hash 引用</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C04 导演意图</td>
+<td class="py-2.5 px-3">视觉控制语义编译器 · 运镜转换器</td>
+<td class="py-2.5 px-3 text-slate-600">运镜规则配置、色调方案设定、轨迹示意</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">复杂镜头 3D 轨迹预演推算</td>
+<td class="py-2.5 px-3 font-mono">0 ~ 2 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">结构化导演意图配置文件 JSON</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C05 图片生成</td>
+<td class="py-2.5 px-3">Flux.1 Pro / 即梦 Dreamina / SD3.5</td>
+<td class="py-2.5 px-3 text-slate-600">选用已有版本、画幅比例预设切换</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">单张高清图像远程推演</td>
+<td class="py-2.5 px-3 font-mono">4 ~ 8 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">生成候选池；需人工锁定采用版本</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C06 视频生成</td>
+<td class="py-2.5 px-3">Runway Gen-3 Alpha / 即梦视频 API</td>
+<td class="py-2.5 px-3 text-slate-600">选镜、首尾帧插槽装配、参数重算</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">生成 5s/10s 动态镜头片断</td>
+<td class="py-2.5 px-3 font-mono">10 ~ 24 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">MP4 格式归档至 CDN 资产节点</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C07 声音设计</td>
+<td class="py-2.5 px-3">MiniMax TTS / ElevenLabs / Suno BGM</td>
+<td class="py-2.5 px-3 text-slate-600">审听已生成音频、音色库试听示例</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">台词语音合成与氛围音乐生成</td>
+<td class="py-2.5 px-3 font-mono">1 ~ 4 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">WAV/MP3 多轨音频条绑定 Shot</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-slate-900">C08 剪辑成片</td>
+<td class="py-2.5 px-3">云端 FFmpeg 媒体合成服务器</td>
+<td class="py-2.5 px-3 text-slate-600">时间线拖拽、音量配平、字幕文本编辑</td>
+<td class="py-2.5 px-3 text-blue-600 font-medium">整片云端转码压制导出</td>
+<td class="py-2.5 px-3 font-mono">3 ~ 6 算力分</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">成品工程打包与多分辨率输出</td>
+</tr>
+<tr class="hover:bg-slate-50/50">
+<td class="py-2.5 px-3 font-mono font-bold text-purple-700">C09 封装工作流</td>
+<td class="py-2.5 px-3">全链路编排与协同治理引擎</td>
+<td class="py-2.5 px-3 text-slate-600">工作流参数映射、门禁规则配置</td>
+<td class="py-2.5 px-3 text-purple-700 font-medium">级联触发批处理 (含预扣与门禁)</td>
+<td class="py-2.5 px-3 font-mono">按子节点累加</td>
+<td class="py-2.5 px-3 font-mono text-slate-600">完整工程版本冻结归档</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</div>
+</main>
+</div>
+<!-- Interactive Budget Confirmation Modal (Simulated for C09 Trigger) -->
+<div class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs hidden flex items-center justify-center p-4" id="budget-modal">
+<div class="bg-white max-w-lg w-full rounded-xl p-6 shadow-2xl border border-slate-200 flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-600 text-[22px]">verified</span>
+<h4 class="text-sm font-bold text-slate-900">工作流执行预扣与审核门禁授权</h4>
+</div>
+<button class="material-symbols-outlined text-slate-400 hover:text-slate-700 text-[18px]" onclick="closeModal()">close</button>
+</div>
+<p class="text-xs text-slate-600 leading-relaxed">
+      你即将运行 <strong class="text-slate-900">「商业短剧全流程自动化流水线 v1.0.0」</strong>。系统已完成幂等哈希校验与各阶段预算估算：
+    </p>
+<div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex flex-col gap-1.5 text-xs font-mono">
+<div class="flex justify-between">
+<span class="text-slate-500">C01 剧本改写:</span>
+<span class="text-slate-800">2 算力分</span>
+</div>
+<div class="flex justify-between">
+<span class="text-slate-500">C02 自动分镜拆分:</span>
+<span class="text-slate-800">4 算力分</span>
+</div>
+<div class="flex justify-between py-1 bg-amber-50 px-1 rounded text-amber-800 font-semibold">
+<span>分镜审核门禁 (Gate 1):</span>
+<span>需人工点击通过 (0分)</span>
+</div>
+<div class="flex justify-between">
+<span class="text-slate-500">C06 视频生成 (首批 2 镜):</span>
+<span class="text-slate-800">24 算力分</span>
+</div>
+<div class="flex justify-between">
+<span class="text-slate-500">C08 云端转码合成:</span>
+<span class="text-slate-800">5 算力分</span>
+</div>
+<div class="pt-2 border-t border-slate-200 flex justify-between font-bold text-slate-900">
+<span>总计预估算力调用:</span>
+<span class="text-blue-600">~35 算力分 (当前可用 14,820)</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-xs text-slate-600">
+<input checked="" class="rounded text-blue-600 focus:ring-0" id="gate-agree" type="checkbox"/>
+<label for="gate-agree">在分镜未人工确认前，绝不自动触发高费率视频渲染</label>
+</div>
+<div class="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+<button class="px-3.5 py-1.5 rounded bg-slate-100 text-xs font-medium text-slate-700 hover:bg-slate-200 transition-colors" onclick="closeModal()">
+        取消
+      </button>
+<button class="px-4 py-1.5 rounded bg-slate-900 text-xs font-medium text-white hover:bg-slate-800 transition-colors shadow-2xs" onclick="confirmRun()">
+        授权预扣并立即开始
+      </button>
+</div>
+</div>
+</div>
+<!-- Bottom Floating Canvas Toolbar (Clean Industrial Pill) -->
+<div class="fixed bottom-5 left-1/2 transform -translate-x-1/2 z-40 bg-white/95 backdrop-blur-md border border-slate-300/80 rounded-full px-3 py-1.5 shadow-[0_8px_25px_-4px_rgba(0,0,0,0.1)] flex items-center gap-1">
+<button class="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors" title="选择工具 (V)">
+<span class="material-symbols-outlined text-[17px]">near_me</span>
+</button>
+<button class="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors" title="连线模式 (C)">
+<span class="material-symbols-outlined text-[17px]">conversion_path</span>
+</button>
+<button class="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors" title="平移抓手 (H)">
+<span class="material-symbols-outlined text-[17px]">pan_tool</span>
+</button>
+<div class="h-4 w-px bg-slate-200 mx-1"></div>
+<button class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 transition-colors" title="新增节点 (+)">
+<span class="material-symbols-outlined text-[15px]">add</span>
+<span>添加工位</span>
+</button>
+<div class="h-4 w-px bg-slate-200 mx-1"></div>
+<button class="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors" title="编组选中工位">
+<span class="material-symbols-outlined text-[17px]">select_all</span>
+</button>
+<button class="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors" title="工位自动对齐">
+<span class="material-symbols-outlined text-[17px]">format_align_center</span>
+</button>
+<button class="p-1.5 rounded-full hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors" title="聚焦全部工位">
+<span class="material-symbols-outlined text-[17px]">crop_free</span>
+</button>
+</div>
+<script>
+  function filterNodes(type) {
+    const creationNodes = document.querySelectorAll('.node-group[data-group="creation"]');
+    const compositeNodes = document.querySelectorAll('.node-group[data-group="composite"]');
+    const buttons = document.querySelectorAll('.filter-btn');
+
+    buttons.forEach(btn => {
+      btn.classList.remove('bg-white', 'text-slate-900', 'shadow-2xs', 'font-medium');
+      btn.classList.add('text-slate-600');
+    });
+
+    if (type === 'all') {
+      document.getElementById('filter-all').classList.add('bg-white', 'text-slate-900', 'shadow-2xs', 'font-medium');
+      creationNodes.forEach(el => el.classList.remove('hidden'));
+      compositeNodes.forEach(el => el.classList.remove('hidden'));
+    } else if (type === 'creation') {
+      document.getElementById('filter-creation').classList.add('bg-white', 'text-slate-900', 'shadow-2xs', 'font-medium');
+      creationNodes.forEach(el => el.classList.remove('hidden'));
+      compositeNodes.forEach(el => el.classList.add('hidden'));
+    } else if (type === 'composite') {
+      document.getElementById('filter-composite').classList.add('bg-white', 'text-slate-900', 'shadow-2xs', 'font-medium');
+      creationNodes.forEach(el => el.classList.add('hidden'));
+      compositeNodes.forEach(el => el.classList.remove('hidden'));
+    }
+  }
+
+  function executeWorkflowModal() {
+    const modal = document.getElementById('budget-modal');
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('budget-modal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  function confirmRun() {
+    closeModal();
+    alert('已成功向 CRUIO 云端 API 网关提交工作流批处理任务！\n已记录幂等请求标识，分镜拆解完成后将在执行队列中等待审核门禁通过。');
+  }
+
+  function openSpecModal() {
+    alert('【C09 工作流规范公开契约】\n• 固定版本: v1.0.0 发布版\n• 输入插槽: 剧本初始文本 / 角色资产包\n• 输出产物: 1080P 成片 / 分镜原画与音频包\n• 门禁保护: 分镜确认未通过时零跑卡挂起');
+  }
+</script>
+</body></html>

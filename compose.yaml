@@ -1,4 +1,19 @@
 services:
+  newApi:
+    image: calciumion/new-api:v1.0.0-rc.44
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    env_file:
+      - ./data/newApi/runtime.env
+    environment:
+      TZ: Asia/Shanghai
+      DEFAULT_LANGUAGE: zh-CN
+      SESSION_COOKIE_SECURE: "false"
+      TRUSTED_PROXIES: none
+      SQLITE_PATH: /data/one-api.db
+    volumes:
+      - ./data/newApi/storage:/data
   toonflow:
     build: .
     init: true

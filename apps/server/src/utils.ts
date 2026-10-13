@@ -20,6 +20,7 @@ import * as mcpRuntime from "@/utils/mcp/runtime";
 import * as teams from "@/utils/teams";
 import * as a2aSettings from "@/agent/a2a/settings";
 import * as personalization from "@/utils/personalization";
+import * as auth from "@/utils/auth";
 
 export default {
   assets,
@@ -45,4 +46,5 @@ export default {
   teams,
   a2aSettings,
   personalization,
+  auth,
 };

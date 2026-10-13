@@ -1,20 +1,10 @@
 <template>
   <main class="loginPage">
-    <section class="loginIntro" aria-labelledby="login-heading">
-      <div>
-        <p class="brand">CRUIO</p>
-        <p class="eyebrow">视觉创作工作台</p>
-        <h1 id="login-heading">从一个项目开始，<br />把想法变成成片。</h1>
-        <p class="introCopy">项目整理创作与成片，工作流独立编排，并可引入多个项目。</p>
-      </div>
-      <p class="buildNote">V1 本地开发环境 · 数据保存至 Cruio PostgreSQL</p>
-    </section>
-
-    <section class="loginPanel">
-      <div class="loginCard">
-        <p class="stepLabel">{{ authMode === "login" ? "欢迎回来" : "创建本地账户" }}</p>
-        <h2>{{ authMode === "login" ? "进入创作空间" : "开始创作" }}</h2>
-        <p class="helper">{{ authMode === "login" ? "登录后可打开项目或工作流库。" : "只用于当前本地开发环境。" }}</p>
+    <section class="loginCard" aria-labelledby="login-heading">
+        <div class="brandRow"><p class="brand">CRUIO</p><p class="eyebrow">视觉创作工作台</p></div>
+        <p class="stepLabel">{{ authMode === "login" ? "欢迎回来" : "创建账户" }}</p>
+        <h1 id="login-heading">{{ authMode === "login" ? "进入创作空间" : "开始创作" }}</h1>
+        <p class="helper">{{ authMode === "login" ? "登录后可打开项目或工作流库。" : "使用邮箱和密码创建账户。" }}</p>
 
         <form @submit.prevent="submitAuth">
           <label>
@@ -22,7 +12,7 @@
             <input v-model.trim="email" type="email" autocomplete="email" placeholder="you@example.com" required />
           </label>
           <label>
-            密码
+            {{ authMode === "login" ? "密码" : "设置密码" }}
             <input
               v-model="password"
               type="password"
@@ -32,16 +22,17 @@
               required
             />
           </label>
-          <p v-if="message" class="errorMessage">{{ message }}</p>
+          <p v-if="message" class="formMessage" :class="{ errorMessage: messageKind === 'error' }" :role="messageKind === 'error' ? 'alert' : 'status'">{{ message }}</p>
           <button class="primaryButton" type="submit" :disabled="working">
-            {{ working ? "请稍候…" : authMode === "login" ? "登录并查看项目" : "创建账户" }}
+            {{ working ? "请稍候…" : authMode === "login" ? "登录并查看项目" : "创建账户并进入项目" }}
           </button>
         </form>
+
+        <button v-if="authMode === 'login'" class="switchButton" type="button" @click="router.push('/passwordReset')">忘记密码？</button>
 
         <button class="switchButton" type="button" @click="toggleMode">
           {{ authMode === "login" ? "没有账户？创建一个" : "已有账户？返回登录" }}
         </button>
-      </div>
     </section>
   </main>
 </template>
@@ -60,6 +51,7 @@ const email = ref("");
 const password = ref("");
 const working = ref(false);
 const message = ref("");
+const messageKind = ref<"error" | "success">("error");
 
 onMounted(async () => {
   if (await session.initialize()) await router.replace("/projects");
@@ -68,75 +60,96 @@ onMounted(async () => {
 function toggleMode() {
   authMode.value = authMode.value === "login" ? "register" : "login";
   message.value = "";
+  messageKind.value = "error";
 }
 
 async function submitAuth() {
+  if (working.value) return;
   working.value = true;
   message.value = "";
+  messageKind.value = "error";
   try {
-    const result = await api<{ user: CruioUser }>(`/api/auth/${authMode.value}`, {
-      method: "POST",
-      body: JSON.stringify({ email: email.value, password: password.value }),
-    });
-    session.user = result.user;
-    session.initialized = true;
-    const next = typeof route.query.next === "string" && route.query.next.startsWith("/")
+    if (authMode.value === "register") {
+      const result = await api<{ user: CruioUser }>("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email: email.value, password: password.value }),
+      });
+      session.user = result.user;
+      session.initialized = true;
+    } else {
+      const result = await api<{ user: CruioUser }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: email.value, password: password.value }),
+      });
+      session.user = result.user;
+      session.initialized = true;
+    }
+    await session.refresh();
+    const next = typeof route.query.next === "string" && route.query.next.startsWith("/") && !route.query.next.startsWith("//")
       ? route.query.next
       : "/projects";
     await router.replace(next);
   } catch (error) {
     message.value = error instanceof Error ? error.message : "无法登录。";
+    messageKind.value = "error";
   } finally {
     working.value = false;
   }
 }
+
 </script>
 
 <style scoped lang="scss">
 .loginPage {
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(420px, .85fr);
-  color: var(--cr-ink);
-  background: var(--cr-paper);
+  place-items: center;
+  padding: 24px;
+  color: var(--cr-text-primary);
+  background: var(--cr-page-background);
 }
 
-.loginIntro {
-  min-height: 100dvh;
-  padding: clamp(34px, 6vw, 86px);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  background: var(--cr-gradient-vertical);
-  color: #28242e;
+.loginCard {
+  width: min(440px, 100%);
+  padding: 24px;
+  border: 1px solid var(--cr-border-subtle);
+  border-radius: 8px;
+  background: var(--cr-surface);
 }
 
-.brand { margin: 0 0 clamp(100px, 20vh, 220px); font-size: .9rem; font-weight: 800; letter-spacing: .2em; }
-.eyebrow, .stepLabel { margin: 0 0 18px; font-size: .72rem; font-weight: 700; letter-spacing: .13em; text-transform: uppercase; }
-h1 { max-width: 760px; margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(3.2rem, 6vw, 6.8rem); font-weight: 500; letter-spacing: -.055em; line-height: .92; text-wrap: balance; }
-.introCopy { max-width: 520px; margin: 34px 0 0; color: rgba(40,36,46,.7); font-size: 1.02rem; line-height: 1.7; }
-.buildNote { margin: 0; color: rgba(40,36,46,.58); font-size: .75rem; }
-.loginPanel { display: grid; place-items: center; padding: 40px; }
-.loginCard { width: min(390px, 100%); }
+.brandRow { display: flex; align-items: center; gap: 8px; margin-bottom: 24px; }
+.brand { margin: 0; color: var(--cr-brand-primary); font-size: 14px; font-weight: 800; letter-spacing: .16em; }
+.eyebrow { margin: 0; color: var(--cr-text-muted); font-size: 12px; }
+.stepLabel { margin: 0 0 8px; color: var(--cr-violet); font-size: 12px; font-weight: 700; }
+h1 { margin: 0; font-size: 20px; font-weight: 620; letter-spacing: -.02em; line-height: 1.5; }
 .stepLabel { color: var(--cr-violet); }
-h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 2.6rem; font-weight: 500; letter-spacing: -.035em; }
-.helper { margin: 14px 0 34px; color: var(--cr-muted); line-height: 1.6; }
-form { display: grid; gap: 18px; }
-label { display: grid; gap: 8px; font-size: .78rem; font-weight: 680; }
-input { width: 100%; padding: 13px 14px; border: 1px solid var(--cr-line); border-radius: 8px; color: var(--cr-ink); background: #fffef9; font: inherit; transition: border-color .2s, box-shadow .2s; }
-input:focus { outline: 0; border-color: var(--cr-green); box-shadow: 0 0 0 3px rgba(36,85,61,.12); }
-.primaryButton { margin-top: 4px; padding: 13px 18px; border: 0; border-radius: 8px; color: #28242e; background: var(--cr-gradient); font: inherit; font-weight: 700; cursor: pointer; transition: transform .2s, filter .2s; }
+.helper { margin: 8px 0 24px; color: var(--cr-text-muted); font-size: 14px; line-height: 1.5; }
+form { display: grid; gap: 16px; }
+label { display: grid; gap: 8px; font-size: 14px; font-weight: 600; }
+input { width: 100%; padding: 8px 12px; border: 1px solid var(--cr-border-strong); border-radius: 6px; color: var(--cr-text-primary); background: var(--cr-surface); font: inherit; transition: border-color .2s, box-shadow .2s; }
+input:focus { outline: 2px solid var(--cr-border-focus); outline-offset: 2px; border-color: var(--cr-border-focus); box-shadow: var(--cr-selection-ring); }
+.primaryButton { margin-top: 4px; padding: 8px 12px; border: 0; border-radius: 6px; color: var(--cr-text-primary); background: var(--cr-gradient); box-shadow: 0 2px 8px color-mix(in srgb, var(--cr-brand-primary) 25%, transparent); font: inherit; font-weight: 600; cursor: pointer; transition: transform .2s, box-shadow .2s; }
 .primaryButton:hover { filter: saturate(1.08) brightness(.98); transform: translateY(-1px); }
 .primaryButton:active { transform: translateY(1px); }
 .primaryButton:disabled { opacity: .55; cursor: default; transform: none; }
-.switchButton { margin-top: 18px; padding: 7px 0; border: 0; color: var(--cr-violet); background: transparent; font: inherit; font-size: .84rem; cursor: pointer; }
-.errorMessage { margin: 0; color: var(--cr-danger); font-size: .82rem; line-height: 1.5; }
+.switchButton { margin-top: 12px; padding: 8px 0; border: 0; color: var(--cr-brand-primary); background: transparent; font: inherit; font-size: 14px; cursor: pointer; }
+.formMessage { margin: 0; color: var(--cr-text-secondary); font-size: 14px; line-height: 1.5; }.errorMessage { color: var(--cr-status-danger); }
+.switchButton:disabled { opacity: .6; cursor: not-allowed; }
 
-@media (max-width: 860px) {
-  .loginPage { grid-template-columns: 1fr; }
-  .loginIntro { min-height: auto; padding: 34px 24px 54px; }
-  .brand { margin-bottom: 74px; }
-  .buildNote { margin-top: 54px; }
-  .loginPanel { padding: 54px 24px 72px; }
+@media (max-width: 480px) {
+  .loginPage { padding: 12px; }
+  .loginCard { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryButton,
+  .switchButton {
+    transition: none;
+  }
+
+  .primaryButton:hover,
+  .primaryButton:active {
+    transform: none;
+  }
 }
 </style>
