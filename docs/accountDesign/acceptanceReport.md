@@ -22,7 +22,7 @@
 
 ## 环境与方法
 
-- 使用独立临时目录运行真实 `apps/accountService` 和 `apps/server`，通过正式运营 CLI 创建两个独立账号 A、B，均未配置模型权限。
+- 使用独立临时目录运行真实 `apps/admin` 和 `apps/server`，通过正式运营 CLI 创建两个独立账号 A、B，均未配置模型权限。
 - 未连接或修改真实客户账号、生产模型凭证及项目数据。未新增测试脚本、测试模块、mock、fixture 或测试依赖。
 - HTTP 直接请求核对响应与权限；浏览器使用 Codex IAB，先验证开发页面，再切换到实际 `build/web` 生产构建。文档保存结果直接核对实际磁盘文件。
 - 视觉参照为用户选择的第二张登录图及账户、未开通、失效、退出四张图。页面中的账号名称来自真实临时服务。
@@ -64,8 +64,8 @@
 
 | 命令 | 结果 |
 | --- | --- |
-| `apps/accountService`：`bun run typecheck` | 通过 |
-| `apps/accountService`：`bun run build` | 通过 |
+| `apps/admin`：`bun run typecheck` | 通过 |
+| `apps/admin`：`bun run build` | 通过 |
 | `apps/web`：`bun run build` | 最终修改后通过；存在大 bundle、动态/静态 import 重叠警告 |
 | `apps/server`：`bun run build` | 最终修改后通过 |
 | `apps/web`：`bun run typecheck` | 未通过，仅报告 `electrobun.config.ts:1` 无法找到 `./.hutch/devkit/api/config/ElectrobunConfig` |

@@ -4,7 +4,7 @@
 
 账户服务已改用 Bun 内置 SQL 驱动连接 PostgreSQL，不再读写 JSON 作为运行时账本。账号、密码哈希、加密 Key 与绑定字段位于 `accountUsers`，会话位于 `accountSessions`，版本、加密密钥指纹及迁移来源摘要位于 `accountMeta`。表名和字段名使用带引号的小驼峰。
 
-- 本机使用已有 `light-pg` 的 PostgreSQL 18.3，独立数据库 `cruioIdentityDev`；不修改已有 `cruio_dev` 业务表。连接配置位于被 Git 忽略的 `apps/accountService/.env`，权限 0600。仍使用 `bash startAccount.sh` 启动。
+- 本机使用已有 `light-pg` 的 PostgreSQL 18.3，独立数据库 `cruioIdentityDev`；不修改已有 `cruio_dev` 业务表。连接配置位于被 Git 忽略的 `apps/admin/.env`，权限 0600。仍使用 `bash startAccount.sh` 启动。
 - 服务器使用官方 PostgreSQL 18.3 Alpine，容器 `cruioPostgres`，仅绑定 `127.0.0.1:5432`，数据库 `cruioIdentity`。应用使用独立非超级用户，不使用数据库超级用户连接。
 - 两端通过 `CRUIO_IDENTITY_DATABASE_URL` 配置连接；`CRUIO_IDENTITY_DATA_DIR` 继续保存 `credentialKey.bin`。数据库保存 Key 密文和带密钥的指纹，账号、Key 指纹及 New API 客户/Key ID 均有唯一约束，会话引用账号外键。
 - 登录、会话验证直接查询数据库，不使用进程内账户快照。管理修改和会话写入使用数据库事务锁，跨进程保护重复绑定、最后管理员及会话数量限制。锁内不执行密码哈希或网络请求。当前写操作串行、管理列表仍一次读取全部账户；高吞吐时可进一步拆分锁并将列表分页下推 SQL。
@@ -13,13 +13,13 @@
 新环境先配置数据库 URL 和独立绝对数据目录，再显式执行：
 
 ```sh
-bun run --cwd apps/accountService manage initialize
+bun run --cwd apps/admin manage initialize
 ```
 
 已有 JSON 数据必须停止旧版账户服务、同时备份 `accounts.json` 与 `credentialKey.bin`，使用原数据目录执行：
 
 ```sh
-bun run --cwd apps/accountService manage migrateJson
+bun run --cwd apps/admin manage migrateJson
 ```
 
 迁移先验证旧数据、解密可读性和约束，再在同一个事务内写入所有账号、会话及迁移标记。保留账号 ID、原密码哈希、Key 密文和会话哈希；原文件不修改。相同来源重复执行不重复导入，来源变化或非空目标库拒绝覆盖。正常启动不自动初始化或迁移，数据库中的密钥指纹与本机文件不匹配时拒绝启动。
@@ -144,7 +144,7 @@ bun run --cwd apps/accountService manage migrateJson
 
 本机编译记录：账户服务 `bun run typecheck` 通过。未创建测试文件，未发起收费模型调用。
 
-更新：2026-11-03。实现位于 `apps/accountService`，沿用 Bun、TypeScript、Express、Zod 和 `@toonflow/file`。本服务负责身份验证，并在同一个 4310 服务的 `/admin` 提供账户管理页面；客户端内置服务通过统一协议连接。没有公开注册、默认账号、默认密码或共享模型密钥。
+更新：2026-11-03。实现位于 `apps/admin`，沿用 Bun、TypeScript、Express、Zod 和 `@toonflow/file`。本服务负责身份验证，并在同一个 4310 服务的 `/admin` 提供账户管理页面；客户端内置服务通过统一协议连接。没有公开注册、默认账号、默认密码或共享模型密钥。
 
 ## 部署与启动
 
@@ -157,7 +157,7 @@ bun install --ignore-scripts
 export CRUIO_IDENTITY_DATA_DIR=/srv/cruioIdentity
 export CRUIO_IDENTITY_PORT=4310
 # 通过受限环境文件提供 CRUIO_IDENTITY_DATABASE_URL；首次建库或旧 JSON 迁移见上方 PostgreSQL 章节。
-bun run --cwd apps/accountService start
+bun run --cwd apps/admin start
 ```
 
 数据目录必须为专用绝对路径，建议位于代码仓库和 Web 静态目录之外。服务固定监听 `127.0.0.1`；开发可用回环 HTTP。生产设置 `NODE_ENV=production`，在同机部署带有效证书的 HTTPS 反向代理。仅当代理固定从回环地址连接且覆盖客户端提供的转发头时，设置 `CRUIO_IDENTITY_TRUST_PROXY=loopback`。代理须覆盖 `X-Forwarded-Proto` 和 `X-Forwarded-For`，禁止将账户服务端口直接对公网开放，禁止记录请求体、Authorization 和响应体。
@@ -182,7 +182,7 @@ bun run --cwd apps/accountService start
 
 `CRUIO_IDENTITY_SESSION_HOURS` 默认 8，支持 1–168 小时整数。会话不会在验证请求中无限滑动续期；每个用户最多保留最近 10 个会话。独立服务重启后仍可验证尚未过期的会话；当前客户端只在内存保留远端令牌，客户端进程重启仍须重新登录。
 
-构建和类型检查分别为 `bun run --cwd apps/accountService build`、`bun run --cwd apps/accountService typecheck`。构建产物在包内 `dist`，使用外置依赖；部署须保留工作区依赖，不能单独拷贝一个 JS 文件即视为完整安装。
+构建和类型检查分别为 `bun run --cwd apps/admin build`、`bun run --cwd apps/admin typecheck`。构建产物在包内 `dist`，使用外置依赖；部署须保留工作区依赖，不能单独拷贝一个 JS 文件即视为完整安装。
 
 ## 运营开通
 
@@ -192,8 +192,8 @@ bun run --cwd apps/accountService start
 
 ```sh
 export CRUIO_IDENTITY_DATA_DIR="$HOME/.cruio/accountService"
-bun run --cwd apps/accountService manage makeAdmin demo
-bun run --cwd apps/accountService start
+bun run --cwd apps/admin manage makeAdmin demo
+bun run --cwd apps/admin start
 ```
 
 随后打开 `http://localhost:4310/admin`，使用 `demo` 的原密码。也可用下表的 `createAdmin` 新建独立管理员。
@@ -204,7 +204,7 @@ bun run --cwd apps/accountService start
 
 ```sh
 read -rs 'accountPassword?输入新账号密码：'
-printf '%s' "$accountPassword" | bun run --cwd apps/accountService manage create 账号 显示名称
+printf '%s' "$accountPassword" | bun run --cwd apps/admin manage create 账号 显示名称
 unset accountPassword
 ```
 
@@ -223,7 +223,7 @@ unset accountPassword
 | `manage clearModel 账号` | 无 | 移除模型授权，撤销原 Cruio 会话 |
 | `manage list` | 无 | 仅列账号、名称、停用及模型配置标记，不输出秘密 |
 
-上表命令均使用 `bun run --cwd apps/accountService` 前缀。例如 `bun run --cwd apps/accountService manage disable 账号`。缺失账号不会自动创建，重复账号不会覆盖。服务繁忙和写入失败会返回非零退出码，不打印密码、模型 Key 或数据库内容。
+上表命令均使用 `bun run --cwd apps/admin` 前缀。例如 `bun run --cwd apps/admin manage disable 账号`。缺失账号不会自动创建，重复账号不会覆盖。服务繁忙和写入失败会返回非零退出码，不打印密码、模型 Key 或数据库内容。
 
 ## 管理页面与 NewAPI Key 绑定
 
@@ -251,7 +251,7 @@ Cruio 不填写 NewAPI 用户 ID、用户名、实例地址或模型允许清单
 
 ```sh
 read -rs 'accountApiKey?输入该账号的 NewAPI API Key：'
-printf '%s' "$accountApiKey" | bun run --cwd apps/accountService manage setModel 账号
+printf '%s' "$accountApiKey" | bun run --cwd apps/admin manage setModel 账号
 unset accountApiKey
 ```
 

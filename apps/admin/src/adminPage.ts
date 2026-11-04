@@ -17,7 +17,7 @@ function documentPage(content: string, title: string) {
 const brand = '<a class="brand" href="/admin"><span class="brandMark" aria-hidden="true">c</span>Cruio</a>';
 
 export function loginPage(error = "") {
-  return documentPage(`<main class="login">${brand}<h1>账户管理台</h1><p class="muted">使用 Cruio 管理员账号登录</p>${error ? `<div role="alert" class="notice error">${escapeHtml(error)}</div>` : ""}<form method="post" action="/admin/login"><div class="field"><label for="account">账号</label><input id="account" name="account" autocomplete="username" maxlength="320" required autofocus></div><div class="field"><label for="password">密码</label><input id="password" type="password" name="password" autocomplete="current-password" maxlength="1024" required></div><button class="primary">登录管理台</button></form><div class="loginHelp">首次使用需在服务停止后，通过运营命令将已有账号设为管理员：<br><code>bun run --cwd apps/accountService manage makeAdmin 账号</code><br>普通创作账号不会自动获得管理权限。</div></main>`, "登录");
+  return documentPage(`<main class="login">${brand}<h1>账户管理台</h1><p class="muted">使用 Cruio 管理员账号登录</p>${error ? `<div role="alert" class="notice error">${escapeHtml(error)}</div>` : ""}<form method="post" action="/admin/login"><div class="field"><label for="account">账号</label><input id="account" name="account" autocomplete="username" maxlength="320" required autofocus></div><div class="field"><label for="password">密码</label><input id="password" type="password" name="password" autocomplete="current-password" maxlength="1024" required></div><button class="primary">登录管理台</button></form><div class="loginHelp">首次使用需在服务停止后，通过运营命令将已有账号设为管理员：<br><code>bun run --cwd apps/admin manage makeAdmin 账号</code><br>普通创作账号不会自动获得管理权限。</div></main>`, "登录");
 }
 
 export type NewApiSelection = {

@@ -1,5 +1,5 @@
 {
-  "name": "@toonflow/accountService",
+  "name": "@toonflow/admin",
   "private": true,
   "type": "module",
   "scripts": {

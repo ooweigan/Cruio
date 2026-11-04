@@ -45,11 +45,11 @@
 - 服务端智能体：`apps/server` 中账户接口、鉴权、个人配置和调用上下文；共享类型和 package exports 由主线程维护。
 - 最后独立验收智能体：基于实际代码与浏览器、现有 typecheck/build、必要手动 HTTP 验证出具验收结果；不新建测试模块、mock、临时测试文件或自检脚本。
 
-身份服务来源已由用户确认：采用仓库内 `apps/accountService` 最小独立账号服务。后续新增的账户管理页面也由该服务在 4310 提供，运行及管理权限见 `accountService.md`。可持久恢复、安全存储及 NewAPI 撤销能力必须按实际支持范围验收，不用内存会话冒充跨重启恢复。
+身份服务来源已由用户确认：采用仓库内 `apps/admin` 最小独立账号服务。后续新增的账户管理页面也由该服务在 4310 提供，运行及管理权限见 `accountService.md`。可持久恢复、安全存储及 NewAPI 撤销能力必须按实际支持范围验收，不用内存会话冒充跨重启恢复。
 
 ## 可信身份服务与客户端内置服务
 
-`apps/server/src/utils/account/config.ts` 的 `serviceUrl` 统一指向独立可信身份服务，随客户端构建，用户无需在启动命令中配置；生产必须 HTTPS，开发仅允许回环 HTTP。以下契约已由仓库内 `apps/accountService` 实现；是否完成实际部署及 NewAPI 联调须另行验证。
+`apps/server/src/utils/account/config.ts` 的 `serviceUrl` 统一指向独立可信身份服务，随客户端构建，用户无需在启动命令中配置；生产必须 HTTPS，开发仅允许回环 HTTP。以下契约已由仓库内 `apps/admin` 实现；是否完成实际部署及 NewAPI 联调须另行验证。
 
 - `POST /api/account/login`：接收 `{ account, password }`。
 - `GET /api/account/session`：通过 `Authorization: Bearer <token>` 验证当前身份、停用及模型授权状态。

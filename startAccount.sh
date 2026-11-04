@@ -24,7 +24,7 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 
 scriptDirectory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-cd "$scriptDirectory/apps/accountService"
+cd "$scriptDirectory/apps/admin"
 export CRUIO_IDENTITY_DATA_DIR="${CRUIO_IDENTITY_DATA_DIR:-$HOME/.cruio/accountService}"
 
 if [[ -n "$adminAccount" ]]; then
