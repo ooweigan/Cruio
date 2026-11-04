@@ -12,7 +12,7 @@ import { showNativeSplash } from "@toonflow/startup";
 import Electrobun, { ApplicationMenu, BrowserWindow, PATHS, Screen, Utils, Updater } from "electrobun/main";
 import { parseInstallUrl } from "./protocol";
 import saveFile, { selectSaveFile } from "./saveFile";
-import createWindowsUpdater, { confirmWindowsUpdateStartup } from "./update/windowsUpdater";
+import { confirmWindowsUpdateStartup } from "./update/windowsUpdater";
 import prepareWebviewRuntime from "./webviewRuntime";
 
 const execFileAsync = promisify(execFile);
@@ -46,7 +46,7 @@ async function restoreInstallRegistration(installDirectory: string) {
       }
       const protocolLauncher = resolve(PATHS.RESOURCES_FOLDER, "app/protocolLauncher.exe");
       if (existsSync(protocolLauncher)) {
-        const protocolKey = "HKCU\\Software\\Classes\\toonflow";
+        const protocolKey = "HKCU\\Software\\Classes\\cruio";
         const commandKey = `${protocolKey}\\shell\\open\\command`;
         const command = `"${protocolLauncher}" "%1"`;
         let protocolExists = true;
@@ -58,7 +58,7 @@ async function restoreInstallRegistration(installDirectory: string) {
         }
         // ACT: 自动更新不经过 NSIS；仅补全缺失协议，已有注册（包括其他安装）保持不动。
         if (!protocolExists) {
-          for (const [key, value] of [[protocolKey, "URL:Toonflow Protocol"], [`${protocolKey}\\DefaultIcon`, `"${resolve(PATHS.RESOURCES_FOLDER, "app.ico")}",0`], [commandKey, command]]) {
+          for (const [key, value] of [[protocolKey, "URL:Cruio Protocol"], [`${protocolKey}\\DefaultIcon`, `"${resolve(PATHS.RESOURCES_FOLDER, "app.ico")}",0`], [commandKey, command]]) {
             await execFileAsync("reg.exe", ["add", key, "/ve", "/t", "REG_SZ", "/d", value, "/f"], { windowsHide: true });
           }
           await execFileAsync("reg.exe", ["add", protocolKey, "/v", "URL Protocol", "/t", "REG_SZ", "/d", "", "/f"], { windowsHide: true });
@@ -89,7 +89,7 @@ async function start() {
     if (process.platform === "darwin") {
       // ACT: WKWebView 的 Command 编辑快捷键由原生菜单角色交给当前响应者处理。
       ApplicationMenu.setApplicationMenu([
-        { label: "Toonflow", submenu: [
+        { label: "Cruio", submenu: [
           { role: "about" },
           { type: "separator" },
           { role: "hide" },
@@ -161,7 +161,7 @@ async function start() {
     const width = Math.min(1280, workArea.width - 64);
     const height = Math.min(960, workArea.height - 64);
     const mainWindow = new BrowserWindow({
-      title: "Toonflow",
+      title: "Cruio",
       url: `http://127.0.0.1:${connection.port}/?desktop=1${connection.remote ? "&remote=1" : ""}`,
       navigationRules: JSON.stringify(getNavigationRules(connection.port)),
       // ACT: Windows SDK 未接管普通新窗口请求，在创建 WebView 弹窗前交给宿主。
@@ -297,8 +297,12 @@ async function start() {
         else await (Updater as DesktopRuntime["updater"]).confirmStartup?.();
       },
       openDevTools() { mainWindow.webview.openDevTools(); },
-      // ACT: Windows 使用两阶段退出；Intel Mac 由兼容入口适配 1.18.1 更新器。
-      updater: process.platform === "win32" ? createWindowsUpdater(PATHS.RESOURCES_FOLDER, Utils as unknown as Parameters<typeof createWindowsUpdater>[1]) : Updater,
+      updater: {
+        // ACT: 首版手动安装更新；Cruio 更新源上线前不接收原 Toonflow 的更新包。
+        getLocalInfo: () => Updater.getLocalInfo(),
+        updateInfo: () => undefined,
+        checkForUpdate: async () => ({ error: "当前 Cruio 体验版请通过安装包更新。" }),
+      },
     } satisfies DesktopRuntime;
     if (process.platform === "win32") {
       // ACT: Electrobun 2.0.1 未设置 Windows 窗口图标，复用构建产物中的应用 ICO。
@@ -331,7 +335,26 @@ async function start() {
       icons.forEach((icon, type) => native.SendMessageW(window, 0x80, type, icon));
       mainWindow.on("close", closeIcons);
     }
+    let shutdown: Promise<void> | undefined;
+    let shutdownComplete = false;
+    Electrobun.events.on("before-quit", event => {
+      if (process.platform !== "darwin" || shutdownComplete) return;
+      // SDK 不等待异步事件处理；先取消退出，清理结束后再请求退出。
+      event.response = { allow: false };
+      if (shutdown) return;
+      isClosing = true;
+      deliverInstall = undefined;
+      pendingInstalls.length = 0;
+      splash?.close();
+      splash = undefined;
+      shutdown = Promise.allSettled([connection.close(), closeBrowsers()]).then(results => {
+        for (const result of results) if (result.status === "rejected") console.error("桌面退出清理失败：", result.reason);
+        shutdownComplete = true;
+        Utils.quit();
+      });
+    });
     mainWindow.on("close", () => {
+      if (process.platform === "darwin") { Utils.quit(); return; }
       void connection.close().catch(error => console.error("设备连接关闭失败：", error));
       void closeBrowsers().catch(error => console.error("浏览器关闭失败：", error));
       isClosing = true;
@@ -340,6 +363,8 @@ async function start() {
       splash?.close();
       splash = undefined;
     });
+    process.once("SIGINT", () => Utils.quit());
+    process.once("SIGTERM", () => Utils.quit());
     function saveRuntime(port: number) {
       if (process.platform === "win32") {
         // ACT: 切换连接也更新端口；启动器通过 PID 忽略已退出进程留下的记录。

@@ -15,5 +15,5 @@ export default router.post("/", validateFields({
   apiKey: z.string().max(8192),
 }), async (req, res) => {
   const { apiUrl, protocol, apiKey } = req.body as { apiUrl: string; protocol: string; apiKey: string };
-  res.json(success(await u.ai.fetchProviderModels({ apiUrl, protocol, apiKey })));
+  res.json(success((await u.ai.fetchProviderModels({ apiUrl, protocol, apiKey })).filter(model => model.type === "text")));
 });

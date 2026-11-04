@@ -12,6 +12,7 @@
     @closed="formApi = undefined">
     <div class="providerEditor">
       <messageMarkdown v-if="provider?.readme" class="providerReadme" :content="provider.readme" />
+      <p v-if="provider?.id === 'cruio'">服务地址和密钥统一在文本模型设置中配置。</p>
       <form-create v-model="formValues" v-model:api="formApi" :rule="formRules" :option="formOptions" />
       <div class="modelHeader">
         <h4>模型配置 <el-text type="info">{{ models.length }}</el-text></h4>
@@ -94,7 +95,7 @@ watch(visible, isVisible => {
   modelEditorVisible.value = false;
   editingModelIndex.value = undefined;
   const configs = settings.value.mediaProviderConfigs as Record<string, Record<string, unknown>> | undefined;
-  formRules.value = formCreate.copyRules(provider?.rules ?? []);
+  formRules.value = formCreate.copyRules((provider?.rules ?? []).filter(rule => provider?.id !== "cruio" || !["apiUrl", "apiKey"].includes(String(rule.field))));
   formValues.value = structuredClone(toRaw((provider && configs?.[provider.id]) ?? {}));
   revision.value = provider?.revision ?? "";
   models.value = JSON.parse(JSON.stringify(provider?.models ?? []));

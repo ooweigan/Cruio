@@ -169,7 +169,7 @@ function parseProvider(source: string) {
         : target.computed && target.property.type === "StringLiteral" ? target.property.value : "";
       return ["vendor", "textRequest", "imageRequest", "videoRequest", "ttsRequest"].includes(name);
     });
-    if (legacy) invalid("检测到旧版 Toonflow 供应商 TS，无法在 Toonflow 2.0 中使用。请在「添加自定义媒体供应商」中点击「一键复制提示词」，结合旧代码和接口资料重新生成新版代码后再导入。");
+    if (legacy) invalid("检测到旧版 Toonflow 供应商 TS，无法在 Cruio 中使用。请在「添加自定义媒体供应商」中点击「一键复制提示词」，结合旧代码和接口资料重新生成新版代码后再导入。");
     invalid("供应商须通过 export default 导出对象");
   }
   const object = unwrap(exported.declaration as Expression);
@@ -248,6 +248,7 @@ async function readProvider(path: string, fileName: string) {
 }
 
 export async function getMediaProvider(id: string) {
+  if (id !== "cruio") invalid("模型服务已统一为 Cruio/NewAPI，请重新选择模型");
   if (!providerIdSchema.safeParse(id).success) invalid("供应商 ID 无效");
   const path = await directory();
   if (!path) invalid("请先在媒体模型设置中添加供应商", 404);
@@ -262,7 +263,7 @@ export async function listMediaProviders() {
   const path = await directory();
   if (!path) return [];
   const files = await readdir(path, { withFileTypes: true });
-  return Promise.all(files.filter(file => file.isFile() && mediaProviderFileSchema.safeParse(file.name).success)
+  return Promise.all(files.filter(file => file.isFile() && file.name === "cruio.ts")
     .sort((left, right) => left.name.localeCompare(right.name)).map(async file => {
       let current = { fileName: file.name, id: file.name.slice(0, -3), source: "", revision: "" };
       try {
@@ -380,24 +381,28 @@ export async function deleteMediaProvider(fileName: string, revision: string) {
   } finally { release(); }
 }
 
-export async function loadMediaProviderSource(source: string, config: Record<string, unknown> = {}, signal?: AbortSignal, fetchRequest = fetch, cwd?: string) {
+export async function loadMediaProviderSource(source: string | Provider, config: Record<string, unknown> = {}, signal?: AbortSignal, fetchRequest = fetch, cwd?: string) {
   signal?.throwIfAborted();
-  const { id } = parseProvider(source);
-  // ACT: VM 只隔离可信供应商的全局上下文；不可信代码需要独立进程等更强隔离。
-  const context = createContext({
-    Buffer, URL, URLSearchParams, TextEncoder, TextDecoder, Blob,
-    AbortController, AbortSignal, setTimeout, clearTimeout,
-  }, { codeGeneration: { strings: false, wasm: false } });
-  const rejectImport = () => { throw new Error("供应商不能导入模块，请使用 this.tool 中的宿主工具"); };
-  const module = new SourceTextModule(providerTranspiler.transformSync(source), {
-    context,
-    identifier: `${id}.ts`,
-    importModuleDynamically: rejectImport,
-  });
-  await module.link(rejectImport);
-  await module.evaluate({ timeout: 1000 });
-  signal?.throwIfAborted();
-  const definition = (module.namespace as { default: Provider }).default;
+  let definition: Provider;
+  if (typeof source === "string") {
+    const { id } = parseProvider(source);
+    // ACT: VM 只隔离可信供应商的全局上下文；不可信代码需要独立进程等更强隔离。
+    const context = createContext({
+      Buffer, URL, URLSearchParams, TextEncoder, TextDecoder, Blob, FormData,
+      AbortController, AbortSignal, setTimeout, clearTimeout,
+    }, { codeGeneration: { strings: false, wasm: false } });
+    const rejectImport = () => { throw new Error("供应商不能导入模块，请使用 this.tool 中的宿主工具"); };
+    const module = new SourceTextModule(providerTranspiler.transformSync(source), {
+      context,
+      identifier: `${id}.ts`,
+      importModuleDynamically: rejectImport,
+    });
+    await module.link(rejectImport);
+    await module.evaluate({ timeout: 1000 });
+    signal?.throwIfAborted();
+    definition = (module.namespace as { default: Provider }).default;
+  } else definition = source;
+  const { id } = definition;
   // ACT: 已安装 TF-Router 仅补齐缺省查询能力，保留用户适配代码与模型列表。
   if (id === tfRouter.id) {
     definition.getPrice ??= tfRouter.getPrice;
@@ -409,7 +414,7 @@ export async function loadMediaProviderSource(source: string, config: Record<str
     ...definition,
     // 查询上下文使用原始注入 fetch，避免继承某次生成请求的取消信号。
     queryFetch: fetchRequest,
-    sourceRevision: createHash("sha256").update(source).digest("hex"),
+    sourceRevision: createHash("sha256").update(typeof source === "string" ? source : JSON.stringify(source)).digest("hex"),
     config: providerConfig,
     signal,
     tool: {

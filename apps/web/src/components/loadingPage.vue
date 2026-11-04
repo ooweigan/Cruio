@@ -95,7 +95,7 @@ function finishFilling() {
       :deep(svg) { display: block; width: 100%; height: auto; overflow: visible; }
       :deep(path) {
         stroke: #000;
-        stroke-width: 14;
+        stroke-width: 2;
         stroke-linecap: round;
         stroke-linejoin: round;
         fill: none;
@@ -104,6 +104,8 @@ function finishFilling() {
         animation: logoDraw 0.65s linear both;
       }
       :deep(path[data-part="1"]) { animation-delay: 0.08s; }
+      :deep(path[data-part="2"]) { animation-delay: 0.12s; }
+      :deep(path[data-part="3"]) { animation-delay: 0.16s; }
     }
 
     .logoFill {

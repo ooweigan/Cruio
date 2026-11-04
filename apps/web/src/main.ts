@@ -12,16 +12,18 @@ import router from "@/router";
 import { registerDesktopProtocol } from "@/lib/desktopProtocol";
 import { registerDownloads } from "@/lib/saveFile";
 import { isMobile, isDesktop, isRemoteConnection } from "@/lib/platform";
-import "@/lib/mobile";
 import { getMissingBrowserFeatures } from "@/lib/browserCapabilities";
-import { registerAnonymousData } from "@/lib/anonymousData";
-import { loadSettings, settingsStorage } from "@/stores/settings";
+import { settingsStorage } from "@/stores/settings";
+import { loadAccount } from "@/stores/account";
+import { registerAccountFetch } from "@/lib/accountTransport";
 import { checkDesktopUpdate } from "@/stores/desktopUpdate";
 import { registerLanguage } from "@/lib/i18n";
 import { locale, translate } from "@toonflow/i18n/vue";
 
 const app = createApp(App);
+app.use(createPinia().use(createPersistedState({ storage: settingsStorage })));
 app.onUnmount(registerLanguage());
+app.onUnmount(registerAccountFetch());
 const requiresWebView2Update = isDesktop && /Windows/i.test(navigator.userAgent)
   && [Map.groupBy, URL.canParse, Promise.withResolvers].some(method => typeof method !== "function");
 const requiresMobileWebViewUpdate = isMobile && getMissingBrowserFeatures().length > 0;
@@ -39,14 +41,12 @@ async function notifyDesktopReady(failed = false) {
 
 // ACT: 已安装客户端的自动更新不经过 NSIS；启动时阻止缺少所需 API 的旧 WebView2 进入业务页面。
 (requiresWebView2Update
-  ? Promise.reject(new Error("当前 Microsoft Edge WebView2 Runtime 版本过旧。请以管理员身份运行微软最新版安装器；若仍提示已安装，请修复 WebView2 或联系管理员检查更新服务。更新完成后，请完全退出 Toonflow 再重新打开。"))
+  ? Promise.reject(new Error("当前 Microsoft Edge WebView2 Runtime 版本过旧。请以管理员身份运行微软最新版安装器；若仍提示已安装，请修复 WebView2 或联系管理员检查更新服务。更新完成后，请完全退出 Cruio 再重新打开。"))
   : requiresMobileWebViewUpdate
-  ? Promise.reject(new Error("当前移动端浏览器内核缺少 Toonflow 所需能力。请更新 Toonflow 和系统浏览器内核；部分系统需要通过系统更新升级。更新完成后，请完全退出并重新打开 Toonflow。"))
-  : loadSettings()).then(async () => {
-  app.use(createPinia().use(createPersistedState({ storage: settingsStorage })));
+  ? Promise.reject(new Error("当前移动端浏览器内核缺少 Cruio 所需能力。请更新 Cruio 和系统浏览器内核；部分系统需要通过系统更新升级。更新完成后，请完全退出并重新打开 Cruio。"))
+  : loadAccount()).then(async () => {
   app.use(router);
   await router.isReady();
-  app.onUnmount(registerAnonymousData());
   app.mount("#app");
   isMounted = true;
   app.onUnmount(registerDownloads());

@@ -15,7 +15,7 @@ const inputSchema = z.strictObject({
 export default Router().post("/", validateFields(inputSchema.shape), async (req, res) => {
   u.mcpControl.assertAppRequest(req);
   const input = inputSchema.parse(req.body);
-  getAgentModelConfiguration(input.providerId, input.modelId, input.thinkingLevel);
+  await getAgentModelConfiguration(input.providerId, input.modelId, input.thinkingLevel);
   const controller = new AbortController();
   const abort = () => controller.abort();
   res.once("close", abort);

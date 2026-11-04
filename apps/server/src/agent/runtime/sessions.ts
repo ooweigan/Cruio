@@ -10,6 +10,7 @@ import { providerSchema, getModelLimits } from "@/utils/ai";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
 import { thinkingLevels } from "@/lib/modelReasoning";
+import { contextId } from "@/utils/account";
 
 export const agentAttachmentsSchema = z
   .array(
@@ -37,7 +38,7 @@ type SessionMessage = {
 };
 // ACT: 复用正在运行的 SDK 会话，文件锁仍由 run 持有；多进程部署时需共享会话所有权。
 const activeSessions = new Map<string, ActiveAgentSession>();
-const sessionKey = (path: string) => process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path);
+const sessionKey = (path: string) => `${contextId()}\0${process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path)}`;
 
 export function getActiveAgentSession(path: string) {
   return activeSessions.get(sessionKey(path));

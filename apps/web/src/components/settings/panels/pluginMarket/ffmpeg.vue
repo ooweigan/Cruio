@@ -39,7 +39,7 @@
       </div>
       <div v-if="selectedSource" class="sourceHint">
         <span>下载较慢时，可取消后切换线路。</span>
-        <el-link :href="selectedSource.homepage" target="_blank" rel="noopener noreferrer" :underline="false" type="primary">来源网站<icon-external-link :size="12" aria-hidden="true" /></el-link>
+        <el-link v-if="selectedSource.id !== 'github'" :href="selectedSource.homepage" target="_blank" rel="noopener noreferrer" :underline="false" type="primary">来源网站<icon-external-link :size="12" aria-hidden="true" /></el-link>
       </div>
       <p class="description">{{ ready ? '已检测到可用版本，无需重复安装。' : '下载后自动完成安装，无需手动解压或配置。' }}</p>
       <el-alert v-if="status && !status.supported" :title="isMobile && !isRemoteMobile ? '移动端暂不提供 FFmpeg 下载，未配置 FFmpeg 时无法执行依赖它的音视频处理。' : '当前平台暂不提供下载，请在高级设置中使用系统安装版。'" type="warning" :closable="false" showIcon />
@@ -73,7 +73,7 @@
         <template v-if="status">
           <p class="description">运行环境：{{ status.platform }} / {{ status.arch }}</p>
           <p class="description">下载版本：{{ status.version }} · {{ status.target }}</p>
-          <p class="description">保存在当前 Toonflow 服务的数据目录，下载后自动复用。</p>
+          <p class="description">保存在当前 Cruio 服务的数据目录，下载后自动复用。</p>
           <code class="toolPath">{{ status.directory }}</code>
           <div v-for="name in toolNames" :key="name" class="toolInfo">
             <strong>{{ name }}</strong>
@@ -111,9 +111,9 @@ const props = withDefaults(defineProps<{ visible?: boolean; downloadOnOpen?: boo
 const headers = { "x-toonflow-workspace": "1" };
 const toolNames = ["ffmpeg", "ffprobe"] as const;
 const modeDescriptions = {
-  auto: "优先使用已下载的版本；未下载时，从当前 Toonflow 服务的系统 PATH 查找。",
+  auto: "优先使用已下载的版本；未下载时，从当前 Cruio 服务的系统 PATH 查找。",
   download: "仅使用此页面下载的版本。",
-  system: "仅从当前 Toonflow 服务的系统 PATH 查找 FFmpeg 与 ffprobe。",
+  system: "仅从当前 Cruio 服务的系统 PATH 查找 FFmpeg 与 ffprobe。",
 };
 const phaseLabels = { idle: "等待下载", downloading: "正在下载", verifying: "正在校验", installing: "正在安装", completed: "下载完成", error: "下载失败", cancelled: "已取消" };
 const config = computed<FfmpegConfig>(() => {
@@ -131,7 +131,10 @@ const downloaded = computed(() => toolNames.some(name => status.value?.tools[nam
 const selectedSource = computed(() => status.value?.sources.find(source => source.id === config.value.source));
 const availableSourceCount = computed(() => status.value?.sources.filter(source => source.available).length ?? 0);
 const sourceGroups = computed(() => {
-  const sources = status.value?.sources ?? [];
+  const sources = (status.value?.sources ?? []).map(source => ({ ...source,
+    label: source.id === "github" ? "上游直连" : source.label,
+    description: source.description.replaceAll("GitHub ", ""),
+  }));
   return [
     { label: "常用线路", sources: sources.filter(source => source.available && ["npmmirror", "github"].includes(source.id)) },
     { label: "更多加速线路", sources: sources.filter(source => source.available && !["npmmirror", "github"].includes(source.id)) },

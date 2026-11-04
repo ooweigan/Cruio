@@ -1,6 +1,5 @@
 import logger from "morgan";
 import express from "express";
-import cors from "cors";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { readFile, readdir } from "@toonflow/file";
@@ -13,7 +12,7 @@ import initializePlugins from "@/utils/plugins/initialize";
 import { languageRequest, resolveRequestLocale, runWithLocale, setLocaleFallback, translateError, translateMessage } from "@/lib/i18n";
 import { detectLocale, normalizeLocale } from "@toonflow/i18n";
 
-const autoInstallProviders = ["tfRouter.ts", "apiMart.ts", "metaso.ts", "compshare.ts"];
+const autoInstallProviders = ["cruio.ts"];
 
 export async function createApp({
   webRoot,
@@ -90,17 +89,16 @@ export async function createApp({
     await buildRoute();
     app.use(logger("dev"));
   }
-  app.use(cors());
   app.use(languageRequest);
+  const { protect } = await import("@/utils/account");
+  app.use(protect);
   app.use("/a2a", express.json({ limit: "2mb" }));
   app.use(["/api/workspaces/files/write", "/api/assets/save"], express.raw({ type: "application/octet-stream", limit: "100mb" }));
   app.use(express.json({ limit: "100mb" }));
   app.use(express.urlencoded({ extended: true, limit: "100mb" }));
   app.use("/api/desktop", desktopRequest);
 
-  const { default: initializeProviderModels } = await import("@/utils/ai/initialize");
-  // ACT: 启动先使用已有模型，远程刷新不阻塞服务监听。
-  void initializeProviderModels().catch(error => console.warn("启动时刷新供应商模型失败：", error));
+  // 客户端启动不使用旧共享密钥刷新目录；模型授权随真实账户会话取得。
   const router = await import("@/router");
   router.default(app);
   const [{ createMcpRouter }, { getMcpTools }, { authorizeMcp }, { skillResources }] = await Promise.all([

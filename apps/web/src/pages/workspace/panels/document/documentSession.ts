@@ -2,6 +2,7 @@ import { markRaw, ref, shallowReactive, type Component } from "vue";
 import axios from "axios";
 import type { ExtContext, ExtDefinition, ExtResource } from "@toonflow/ext-scaffold/runtime";
 import useWorkspaceFiles, { type TextSnapshot } from "@/lib/workspaceFiles";
+import { getAccountContext } from "@/lib/accountTransport";
 import { writeClipboardText } from "@/lib/clipboard";
 import { extensionConfig, saveExtensionConfig } from "./extensions";
 import { t } from "@toonflow/i18n/vue";
@@ -63,11 +64,13 @@ export function createDocumentSession(resource: ExtResource, extension: ExtDefin
       clearTimeout(timer);
       if (context.dirty && queuedRevision !== revision) {
         const currentRevision = revision;
+        const accountContext = getAccountContext();
         const text = context.text;
         queuedRevision = currentRevision;
         // ACT: 保存始终绑定打开时的目录和文件，排队期间切换 Tab 不改变写入目标。
         saving = saving.catch(() => {}).then(async () => {
           if (disposed) return;
+          if (!accountContext || getAccountContext() !== accountContext) throw new Error("登录上下文已变化，请重新保存文档。");
           if (!disk) throw new Error("文件尚未读取，不能保存");
           const nextRevision = await files.writeTextSnapshot(resource.path, text, disk);
           disk = { ...disk, text, revision: nextRevision };

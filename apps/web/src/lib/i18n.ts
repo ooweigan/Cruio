@@ -4,6 +4,7 @@ import { detectLocale, isRtlLocale } from "@toonflow/i18n";
 import { locale, setLocale, translate } from "@toonflow/i18n/vue";
 import { uiSettings } from "@/stores/settings";
 import type { LocaleConfig } from "vue-stream-markdown";
+import { registerAccountTransport } from "@/lib/accountTransport";
 import "dayjs/locale/zh-cn";
 import "dayjs/locale/zh-tw";
 import "dayjs/locale/ja";
@@ -26,13 +27,14 @@ import "dayjs/locale/fa";
 import "dayjs/locale/tr";
 
 export function registerApiLanguage(client: AxiosInstance) {
+  const stopAccount = registerAccountTransport(client);
   const interceptor = client.interceptors.request.use(config => {
     const url = new URL(client.getUri(config), window.location.href);
     // ACT: 仅本应用 API 接收界面语言，不改变供应商等外部请求。
     if (url.origin === window.location.origin && url.pathname.startsWith("/api/")) config.headers.set("Accept-Language", locale.value);
     return config;
   });
-  return () => client.interceptors.request.eject(interceptor);
+  return () => { client.interceptors.request.eject(interceptor); stopAccount(); };
 }
 
 export function registerLanguage() {

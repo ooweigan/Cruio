@@ -12,6 +12,7 @@ import { createQuestionContext, answerQuestion } from "@/agent/bridge/question";
 import { listTools, loadTool, validateToolConfig } from "@/utils/plugins/tools";
 import { browserRuntime } from "@/utils/browser";
 import conf from "@/utils/conf";
+import { contextId, signal as accountSignal, onSessionEnd } from "@/utils/account";
 import type { ThinkingLevel } from "@/lib/modelReasoning";
 import type { SingleAgentEvent, SingleAgentResult, SingleAgentStatus, SingleAgentToolDescriptor, SingleAgentToolReference, SingleAgentToolResult } from "./types";
 
@@ -34,6 +35,7 @@ type RunState = {
   clientCalls: Map<string, ClientCall>;
 };
 type SingleSession = {
+  contextId: string;
   id: string;
   cwd: string;
   workspaceAvailable: boolean;
@@ -43,6 +45,7 @@ type SingleSession = {
   active?: RunState;
   closed: boolean;
   closing?: Promise<void>;
+  releaseAccount?: () => void;
 };
 
 // ACT: 临时对话只保存在当前进程内，关闭后销毁；多进程部署需共享会话及回调通道。
@@ -50,7 +53,7 @@ const sessions = new Map<string, SingleSession>();
 
 function getSession(sessionId: string) {
   const session = sessions.get(sessionId);
-  if (!session || session.closed) throw Object.assign(new Error("临时对话不存在或已关闭"), { status: 404 });
+  if (!session || session.closed || session.contextId !== contextId()) throw Object.assign(new Error("临时对话不存在或已关闭"), { status: 404 });
   return session;
 }
 
@@ -109,15 +112,17 @@ export async function create(options: {
   directory?: string;
   systemPrompt?: string;
 }, signal?: AbortSignal) {
+  signal = accountSignal(signal);
   signal?.throwIfAborted();
   const id = crypto.randomUUID();
   const cwd = options.directory ?? join(dirname(conf.path), "singleAgent", id);
   if (!options.directory) await mkdir(cwd, { recursive: true });
   const session: SingleSession = {
-    id, cwd, workspaceAvailable: !!options.directory, history: SessionManager.inMemory(cwd),
+    id, contextId: contextId(), cwd, workspaceAvailable: !!options.directory, history: SessionManager.inMemory(cwd),
     systemPrompt: options.systemPrompt ?? "", tools: [], closed: false,
   };
   sessions.set(id, session);
+  session.releaseAccount = onSessionEnd(() => closeSession(session));
   try {
     const question: QuestionContext = { ask: (...args) => {
       const active = session.active;
@@ -154,7 +159,7 @@ export async function create(options: {
     signal?.throwIfAborted();
     return { sessionId: id };
   } catch (error) {
-    await close(id);
+    await closeSession(session);
     throw error;
   }
 }
@@ -167,6 +172,7 @@ export async function run(options: {
   modelId: string;
   thinkingLevel?: ThinkingLevel;
 }, send: (event: SingleAgentEvent) => void, signal?: AbortSignal, onStart?: () => void) {
+  signal = accountSignal(signal);
   const state = getSession(options.sessionId);
   if (state.active) throw Object.assign(new Error("此对话正在运行，请等待当前回复完成"), { status: 409 });
   const active: RunState = {
@@ -355,6 +361,11 @@ export function assertWorkspaceBrowserAccess(browserSessionId: string) {
 export async function close(sessionId: string) {
   const session = sessions.get(sessionId);
   if (!session) return;
+  if (session.contextId !== contextId()) throw Object.assign(new Error("临时对话不存在或已关闭"), { status: 404 });
+  return closeSession(session);
+}
+
+async function closeSession(session: SingleSession) {
   if (session.closing) return session.closing;
   session.closed = true;
   const active = session.active;
@@ -366,7 +377,8 @@ export async function close(sessionId: string) {
       try { await browserRuntime.closeOwner(session.cwd, session.history.getSessionId()); }
       finally { await active?.finished.promise; }
     } finally {
-      sessions.delete(sessionId);
+      sessions.delete(session.id);
+      session.releaseAccount?.();
       // 仅清理 create 分配的私有目录，用户提供的工作区由用户管理。
       if (!session.workspaceAvailable) await rm(join(dirname(conf.path), "singleAgent", session.id), { recursive: true, force: true });
     }

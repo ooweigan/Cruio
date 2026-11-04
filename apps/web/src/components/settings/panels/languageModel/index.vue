@@ -21,19 +21,14 @@
             <el-text size="small" type="info">{{ item.models.length }} 个模型</el-text>
           </div>
           <el-space class="itemActions" wrap>
-            <el-button v-if="isTfRouterProvider(item) && item.apiKey?.trim() && !item.models.length" text :icon="IconRefresh" :loading="fetchingId === item.id" :disabled="!!deletingId || !!fetchingId" @click="fetchProviderModels(item)">获取模型</el-button>
+            <el-button v-if="item.apiKey?.trim() && (item.id === 'cruio' || isTfRouterProvider(item) && !item.models.length)" text :icon="IconRefresh" :loading="fetchingId === item.id" :disabled="!!deletingId || !!fetchingId" @click="fetchProviderModels(item)">获取模型</el-button>
             <el-button text :icon="IconEdit" :disabled="!!deletingId" @click="openCustomProvider(item)">编辑</el-button>
-            <el-popconfirm title="确定删除此供应商及其模型？" confirmButtonText="删除" cancelButtonText="取消" @confirm="deleteProvider(item.id)">
-              <template #reference><el-button text type="danger" :icon="IconTrash" :loading="deletingId === item.id" :disabled="!!deletingId">删除</el-button></template>
-            </el-popconfirm>
+
           </el-space>
         </div>
       </el-card>
     </div>
-    <div class="providerActions">
-      <el-button class="addButton" :icon="IconPlus" @click="openProvider">添加供应商</el-button>
-      <el-button class="addButton" :icon="IconSettings" @click="openCustomProvider()">添加自定义供应商</el-button>
-    </div>
+
     <component :is="addProviderDialog" v-model="providerDialogVisible" />
     <component :is="addCustomProviderDialog" v-model="customProviderDialogVisible" :provider="editingProvider" />
   </div>

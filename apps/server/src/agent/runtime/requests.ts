@@ -7,6 +7,7 @@ import type { AgentImageReference } from "@/agent/runtime/imageAttachments";
 import { getRequestFiles, type RequestFile } from "@/utils/ai/requestFiles";
 import { createFileTransport, FileRequestLimitError } from "@/utils/ai/files";
 import conf from "@/utils/conf";
+import { verifyCurrent, modelCredential, signal as accountSignal, failure } from "@/utils/account";
 
 function contentHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -46,6 +47,14 @@ export function configureAgentRequests(session: AgentSession, limits?: { maxRequ
     void (async () => {
       let partial: AssistantMessage | undefined;
       try {
+        await verifyCurrent();
+        const credential = modelCredential();
+        const target = new URL(credential.apiUrl);
+        if (target.pathname === "/") target.pathname = "/v1";
+        if (target.href.replace(/\/+$/, "") !== model.baseUrl.replace(/\/+$/, "")) {
+          throw failure("modelAuthorizationUnavailable", "模型服务地址已变化，请重新发起对话", 403);
+        }
+        options = { ...options, apiKey: credential.apiKey, signal: accountSignal(options?.signal) };
         if (toolFailure) { const { error } = toolFailure; toolFailure = undefined; throw error; }
         const providers = conf.get("settings", {}).customProviders;
         const provider = Array.isArray(providers) ? providers.find(item => item?.id === model.provider) : undefined;

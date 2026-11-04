@@ -45,7 +45,7 @@ const workspace = useWorkspaceStore();
 const directory = workspace.project?.directory;
 const editorApi = shallowRef<DockviewApi>();
 const activeSelection = shallowRef<TreeSelection>();
-const sessions = new Map<string, DocumentSession>();
+const sessions = shallowReactive(new Map<string, DocumentSession>());
 const views = new Map<string, EditorView>();
 const sessionWatchers = new Map<DocumentSession, () => void>();
 const uniqueSessions = () => [...new Set(sessions.values())];
@@ -662,7 +662,9 @@ onBeforeUnmount(() => {
   sessionWatchers.forEach(stop => stop());
   disposables.forEach(disposable => disposable.dispose());
 });
-defineExpose({ ready, flushSave, cancelSave, getDocument, openDocument, writeDocument, performFileAction });
+defineExpose({ ready, flushSave, cancelSave, getDocument, openDocument, writeDocument, performFileAction,
+  get hasUnsavedWork() { return uniqueSessions().some(session => session.context.dirty); },
+});
 </script>
 
 <style lang="scss">

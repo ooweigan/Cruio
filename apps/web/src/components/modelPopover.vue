@@ -22,7 +22,7 @@
       </template>
       <el-form class="modelOptions" labelPosition="top">
         <el-form-item label="模型">
-          <el-select v-model="selectedModel" filterable :disabled="disabled" :teleported="false" placeholder="选择模型" aria-label="选择模型" noDataText="请先在设置中添加模型" @change="reasoningEffort = ''">
+          <el-select v-model="selectedModel" filterable :disabled="disabled" :teleported="false" placeholder="选择模型" aria-label="选择模型" :noDataText="accountSession.modelAccess.message || '当前无可用模型，请联系运营'" @change="reasoningEffort = ''">
             <template #prefix><modelIcon v-if="selectedModelChoice" :model="selectedModelChoice.modelId" :size="18" /></template>
             <el-option-group v-for="provider in modelGroups" :key="provider.id" :label="provider.label">
               <el-option v-for="model in provider.models" :key="model.id" :label="model.label" :value="JSON.stringify([provider.id, model.id])">
@@ -56,6 +56,7 @@ import { IconChevronDown, IconChevronUp } from "@tabler/icons-vue";
 import { modelIcon } from "@toonflow/model-icons";
 import type { ThinkingLevel } from "@toonflow/server/modelReasoning";
 import { customProviders, modelChoices } from "@/stores/settings";
+import { accountSession } from "@/stores/account";
 
 const selectedModel = defineModel<string>({ default: "" });
 const reasoningEffort = defineModel<string>("reasoningEffort", { default: "" });
@@ -63,14 +64,18 @@ const props = withDefaults(defineProps<{ active?: boolean; disabled?: boolean }>
 const visible = ref(false);
 const reasoningId = useId();
 const reasoningLabels: Record<ThinkingLevel, string> = { off: "关闭", minimal: "最小", low: "低", medium: "中", high: "高", xhigh: "极高", max: "最高" };
-const modelGroups = computed(() => customProviders.value.toSorted((left, right) => Number(right.id === "tfRouter") - Number(left.id === "tfRouter")));
+const modelGroups = customProviders;
 const selectedModelChoice = computed(() => modelChoices.value.find(item => item.value === selectedModel.value));
 const reasoningLevels = computed(() => selectedModelChoice.value?.reasoningLevels ?? []);
 const reasoningOptions = computed(() => [{ label: "默认", value: "" }, ...reasoningLevels.value.map(value => ({ label: reasoningLabels[value], value }))]);
 const reasoningColumns = computed(() => Math.min(4, reasoningOptions.value.length > 4 ? Math.ceil(reasoningOptions.value.length / 2) : reasoningOptions.value.length));
 const reasoningLabel = computed(() => reasoningOptions.value.find(item => item.value === reasoningEffort.value)?.label ?? "默认");
-watch(modelChoices, items => {
-  if (!selectedModel.value) selectedModel.value = items[0]?.value ?? "";
+watch([modelChoices, selectedModel], ([items, selected]) => {
+  if (!items.length || items.some(item => item.value === selected)) return;
+  // ACT: 旧对话优先沿用 NewAPI 中的同名模型；不可用时选当前列表首项，不改写历史消息。
+  let modelId: unknown;
+  try { modelId = JSON.parse(selected || "[]")[1]; } catch {}
+  selectedModel.value = (items.find(item => item.modelId === modelId) ?? items[0])!.value;
 }, { immediate: true });
 watch([() => selectedModelChoice.value?.reasoningLevels, reasoningEffort], ([levels, effort]) => {
   if (levels && effort && !levels.includes(effort as ThinkingLevel)) reasoningEffort.value = "";

@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from "@toonflow/file";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "@toonflow/file";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 
@@ -23,6 +23,14 @@ async function run(command: string[], input?: string) {
   if (await child.exited !== 0) throw new Error(`macOS 安装镜像制作失败：${command[0]} ${command[1]}`);
 }
 
+export async function removeMacBuildApp(appPath: string) {
+  if (!existsSync(appPath)) return;
+  const registrationTool = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
+  await run([registrationTool, "-u", appPath]);
+  // ACT: 仅移除打包完成后的构建副本，DMG 与更新归档已包含完整应用；开发运行模式保留副本。
+  rmSync(appPath, { recursive: true });
+}
+
 async function createDmg(args: string[]) {
   const sourceIndex = args.indexOf("-srcfolder");
   if (args[0] !== "create" || sourceIndex < 0) {
@@ -42,6 +50,22 @@ async function createDmg(args: string[]) {
   if (existsSync(mountPath)) throw new Error(`请先推出同名安装镜像再打包：${mountPath}`);
   const apps = readdirSync(source).filter(name => name.endsWith(".app"));
   if (apps.length !== 1) throw new Error("macOS 安装镜像必须包含且仅包含一个应用。");
+  const appPath = join(source, apps[0]!);
+  const resources = join(appPath, "Contents/Resources");
+  const metadataPath = join(resources, "metadata.json");
+  if (existsSync(metadataPath) && JSON.parse(readFileSync(metadataPath, "utf8")).identifier === "local.cruio.desktop") {
+    // ACT: 首版直接拖拽安装完整应用，避免 SDK 自解压壳在首次启动后遗留包装进程。
+    const archives = readdirSync(resources).filter(name => name.endsWith(".tar.zst"));
+    if (archives.length !== 1) throw new Error("Cruio 安装包缺少唯一的应用归档。");
+    const unpacked = mkdtempSync(join(tmpdir(), "cruioApp"));
+    try {
+      await run(["/usr/bin/tar", "-xf", join(resources, archives[0]!), "-C", unpacked]);
+      const expanded = join(unpacked, apps[0]!);
+      if (!existsSync(join(expanded, "Contents/Resources/version.json"))) throw new Error("Cruio 应用归档不完整。");
+      rmSync(appPath, { recursive: true });
+      cpSync(expanded, appPath, { recursive: true });
+    } finally { rmSync(unpacked, { recursive: true, force: true }); }
+  }
   const background = join(source, ".background");
   mkdirSync(background, { recursive: true });
   if (!existsSync(join(source, "Applications"))) throw new Error("macOS 安装镜像缺少 Applications 快捷方式。");
@@ -65,11 +89,11 @@ function run(args) {
   }
   const dark = $.NSColor.colorWithCalibratedWhiteAlpha(0.15, 1);
   const muted = $.NSColor.colorWithCalibratedWhiteAlpha(0.4, 1);
-  text("安装 Toonflow", 320, 28, dark);
+  text("安装 Cruio", 320, 28, dark);
   text("将左侧应用拖到右侧 Applications 文件夹", 282, 17, muted);
   text("→", 165, 56, $.NSColor.colorWithCalibratedRedGreenBlueAlpha(0.25, 0.45, 0.9, 1));
-  text("等待复制完成，再从“应用程序”打开 Toonflow。", 64, 15, dark);
-  text("Drag Toonflow to Applications to install.", 34, 13, muted);
+  text("等待复制完成，再从“应用程序”打开 Cruio。", 64, 15, dark);
+  text("Drag Cruio to Applications to install.", 34, 13, muted);
   image.unlockFocus;
   const bitmap = $.NSBitmapImageRep.imageRepWithData(image.TIFFRepresentation);
   if (!bitmap.representationUsingTypeProperties($.NSPNGFileType, $({})).writeToFileAtomically(args[0], true)) {
@@ -116,11 +140,16 @@ end run
 `);
     if (!existsSync(join(mountPath, ".DS_Store"))) throw new Error("Finder 未保存 macOS 安装引导布局。");
     await run(["/usr/bin/hdiutil", "detach", mountPath]);
+    // ACT: 卷推出后再注销，避免 Finder 在卸载前重新登记其中的应用。
+    await run(["/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", "-u", join(mountPath, apps[0]!)]);
     await run(["/usr/bin/hdiutil", "convert", imagePath, "-format", args[formatIndex + 1]!, "-o", output, "-ov"]);
     console.log(`已添加拖拽安装引导：${basename(output)}`);
   } finally {
     if (existsSync(mountPath) && statSync(mountPath).dev !== statSync("/Volumes").dev) {
-      try { await run(["/usr/bin/hdiutil", "detach", mountPath]); }
+      try {
+        await run(["/usr/bin/hdiutil", "detach", mountPath]);
+        await run(["/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister", "-u", join(mountPath, apps[0]!)]);
+      }
       catch (error) { throw new Error(`安装镜像未能卸载，已保留临时目录：${temporary}`, { cause: error }); }
     }
     rmSync(temporary, { recursive: true, force: true });

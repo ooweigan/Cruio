@@ -1,7 +1,7 @@
 import conf from "conf";
 import { mkdirSync, readdirSync, realpathSync } from "@toonflow/file";
 import { resolve } from "node:path";
-import tfRouter from "@toonflow/providers/language/tfRouter";
+import cruio from "@toonflow/providers/language/cruio";
 import type { RemoteTeam } from "@/utils/teams";
 import type { A2aSettings } from "@/agent/a2a/settings";
 import type { desktopUpdateAttempt } from "@/types/desktop";
@@ -9,7 +9,7 @@ import type { MobileLinkConfig } from "@/utils/mobileLink";
 import { normalizeNodeMenu, serializeNodeMenu } from "@/lib/nodeMenu";
 import type { SavedMcpServer } from "@toonflow/mcp/client";
 
-const autoInstallProviders = [tfRouter];
+const autoInstallProviders = [cruio];
 const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(import.meta.dirname, "../../../../../data");
 mkdirSync(dataDirectory, { recursive: true });
 const configDirectory = realpathSync(dataDirectory);
@@ -32,6 +32,23 @@ export function removeLegacySettings(settings: Record<string, unknown>) {
     }
   }
   return changed;
+}
+
+export function synchronizeModelGateway(settings: Record<string, unknown>) {
+  const providers = Array.isArray(settings.customProviders) ? settings.customProviders : [];
+  let provider = providers.find(item => item?.id === cruio.id);
+  if (!provider) {
+    const { id, label, version, apiUrl, protocol, models } = cruio;
+    provider = { id, label, version, apiUrl: process.env.CRUIO_NEW_API_URL || apiUrl, protocol, models, apiKey: process.env.CRUIO_NEW_API_KEY || "" };
+    settings.customProviders = [...providers, provider];
+  } else if (!process.env.CRUIO_NEW_API_URL && ["http://127.0.0.1:3001", "http://127.0.0.1:3001/v1", "http://localhost:3001", "http://localhost:3001/v1"].includes(provider.apiUrl)) {
+    // 升级旧体验包时迁移本机网关地址，避免已有设置覆盖生产默认值。
+    provider.apiUrl = cruio.apiUrl;
+  }
+  const configs = settings.mediaProviderConfigs;
+  const mediaConfigs = configs && typeof configs === "object" && !Array.isArray(configs) ? configs as Record<string, unknown> : {};
+  // ACT: 文本设置是唯一接入配置；保留旧供应商数据，但不再用于模型调用。
+  settings.mediaProviderConfigs = { ...mediaConfigs, cruio: { apiUrl: provider.apiUrl, apiKey: provider.apiKey } };
 }
 
 export function cleanNodeMenuSettings(settings: Record<string, unknown>) {
@@ -62,8 +79,36 @@ if (removeLegacySettings(settings)) config.set("settings", settings);
 
 // ACT: 仅初始化尚未配置的文本供应商；已有列表（包括用户清空的列表）保持原样。
 if (!config.has("settings.customProviders")) {
-  config.set("settings.customProviders", autoInstallProviders.map(({ id, label, icon, version, apiUrl, protocol, models }) =>
-    ({ id, label, icon, version, apiUrl, protocol, models, apiKey: "" })));
+  config.set("settings.customProviders", autoInstallProviders.map(({ id, label, version, apiUrl, protocol, models }) =>
+    ({ id, label, version, apiUrl: process.env.CRUIO_NEW_API_URL || apiUrl, protocol, models, apiKey: process.env.CRUIO_NEW_API_KEY || "" })));
 }
+
+if (!config.has("settings.mediaProviderConfigs.cruio")) {
+  config.set("settings.mediaProviderConfigs.cruio", {
+    apiUrl: process.env.CRUIO_NEW_API_URL || cruio.apiUrl,
+    apiKey: process.env.CRUIO_NEW_API_KEY || "",
+  });
+}
+
+// ACT: 部署配置在进程启动时覆盖该供应商，其他设置保持原样；凭证不写入供应商源码。
+if (process.env.CRUIO_NEW_API_URL || process.env.CRUIO_NEW_API_KEY) {
+  const apiUrl = process.env.CRUIO_NEW_API_URL;
+  if (apiUrl) {
+    const url = new URL(apiUrl);
+    if (!/^https?:$/.test(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error("CRUIO_NEW_API_URL 须为不含凭据、查询参数或片段的 HTTP(S) 地址");
+  }
+  const overrides = {
+    ...(apiUrl ? { apiUrl } : {}),
+    ...(process.env.CRUIO_NEW_API_KEY ? { apiKey: process.env.CRUIO_NEW_API_KEY } : {}),
+  };
+  const providers = config.get("settings.customProviders");
+  if (Array.isArray(providers)) config.set("settings.customProviders", providers.map(provider => provider?.id === cruio.id ? { ...provider, ...overrides } : provider));
+  const mediaConfigs = config.get("settings", {}).mediaProviderConfigs as Record<string, Record<string, unknown>> | undefined;
+  config.set("settings.mediaProviderConfigs.cruio", { ...mediaConfigs?.cruio, ...overrides });
+}
+
+const gatewaySettings = config.get("settings", {});
+synchronizeModelGateway(gatewaySettings);
+config.set("settings", gatewaySettings);
 
 export default config;

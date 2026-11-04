@@ -7,7 +7,8 @@
         </transition>
       </router-view>
       <loadingPage v-model:visible="workspaceStore.projectLoadingVisible" v-model:drawn="workspaceStore.projectLoadingDrawn" :active="workspaceStore.projectLoading" />
-      <ffmpegRequired />
+      <ffmpegRequired v-if="isAuthenticated" />
+      <accountDialogs />
       <updateBox
         v-if="updateBoxBuild && !installFailure"
         v-model="updateBoxVisible"
@@ -28,11 +29,10 @@
               <dd><strong>{{ installFailure.targetVersion ? `v${installFailure.targetVersion}` : "未知版本" }}</strong><code>{{ installFailure.targetHash || "构建标识未知" }}</code></dd>
             </div>
           </dl>
-          <p class="failureHint">请前往 GitHub 最新发布页，选择适合当前系统的完整安装包，关闭客户端后重新安装。</p>
+          <p class="failureHint">请联系运营获取适合当前系统的 Cruio 安装包，关闭客户端后重新安装。</p>
         </div>
         <template #footer>
           <el-button @click="installFailureVisible = false">稍后</el-button>
-          <el-button tag="a" type="primary" :href="installFailure.downloadUrl" target="_blank" rel="noopener noreferrer">前往下载页</el-button>
         </template>
       </el-dialog>
     </config-provider>
@@ -62,6 +62,8 @@ import loadingPage from "@/components/loadingPage.vue";
 import { useMcpControl } from "@/lib/mcpControl";
 import ffmpegRequired from "@/components/settings/ffmpegRequired.vue";
 import updateBox from "@/components/updateBox.vue";
+import accountDialogs from "@/components/accountDialogs.vue";
+import { isAuthenticated } from "@/stores/account";
 import "element-plus/theme-chalk/dark/css-vars.css";
 
 useMcpControl();

@@ -14,6 +14,8 @@ import { readFile, stat } from "@toonflow/file";
 import { resolveWorkspacePath } from "@/utils/workspace/files";
 import { getReadableFileMimeType } from "@/lib/documentFormats";
 import { readDocument } from "@/utils/documents";
+import { hasModelCredential, modelCredential, signal as accountSignal } from "@/utils/account";
+import { getGatewayModels } from "@/utils/ai/models";
 
 export { fetchProviderModels } from "@/utils/ai/models";
 export { refreshProviderModels } from "@/utils/ai/initialize";
@@ -65,7 +67,10 @@ export function getModelReasoning(providerId: string, model: z.infer<typeof prov
     if (wire != null) thinkingLevelMap[level] = wire;
   }
   // ACT: 显式接口值声明使用 Anthropic effort 协议，避免 SDK 将映射值改为 token 预算。
-  const compat = protocol === "anthropic-messages" && efforts
+  // ACT: Cruio 的 NewAPI 上游使用 system 角色，开启推理时也不将系统提示改成 developer。
+  const compat = providerId === "cruio" && protocol === "openai-completions"
+    ? { ...base?.compat, supportsDeveloperRole: false }
+    : protocol === "anthropic-messages" && efforts
     ? { ...base?.compat, forceAdaptiveThinking: true, supportsMidConvoEffort: false }
     : base?.compat;
   return { reasoning, thinkingLevelMap, reasoningLevels, compat };
@@ -90,12 +95,16 @@ export function getModelLimits(providerId: string, model: z.infer<typeof provide
   };
 }
 
-export function getConfiguredModel(providerId: string, modelId: string) {
+export async function getConfiguredModel(providerId: string, modelId: string) {
+  if (providerId !== "cruio") throw Object.assign(new Error("模型服务已统一为 Cruio/NewAPI，请重新选择模型"), { status: 400 });
   const providers = conf.get("settings", {}).customProviders;
   const parsed = providerSchema.safeParse(Array.isArray(providers) ? providers.find(item => item?.id === providerId) : undefined);
   if (!parsed.success) throw Object.assign(new Error("请先在设置中配置模型供应商"), { status: 400 });
-  const provider = parsed.data;
-  const model = provider.models.find(item => item.id === modelId);
+  const credential = modelCredential();
+  const provider = { ...parsed.data, apiUrl: credential.apiUrl, apiKey: credential.apiKey };
+  const entry = (await getGatewayModels()).find(item => item.id === modelId && item.type === "text");
+  const saved = provider.models.find(item => item.id === modelId);
+  const model = entry && { ...entry, reasoningEfforts: saved?.reasoningEfforts };
   if (!model) throw Object.assign(new Error("所选模型不存在，请重新选择"), { status: 400 });
   const baseUrl = new URL(provider.apiUrl);
   if (baseUrl.pathname === "/") baseUrl.pathname = "/v1";
@@ -103,14 +112,19 @@ export function getConfiguredModel(providerId: string, modelId: string) {
   return { provider, model: { ...model, ...getModelReasoning(providerId, model, provider.protocol), contextWindow: limits.contextWindow, maxOutputTokens: limits.maxTokens }, baseUrl: baseUrl.href.replace(/\/+$/, "") };
 }
 
-export function listAiModels() {
+export async function listAiModels() {
+  if (!hasModelCredential()) return [];
   const providers = conf.get("settings", {}).customProviders;
   if (!Array.isArray(providers)) return [];
+  const models = (await getGatewayModels()).filter(model => model.type === "text");
   return providers.flatMap(item => {
+    if (item?.id !== "cruio") return [];
     const parsed = providerSchema.extend({ id: z.string().min(1), label: z.string() }).safeParse(item);
     if (!parsed.success) return [];
     const provider = parsed.data;
-    return provider.models.filter(model => model.id.trim()).map(model => {
+    return models.map(entry => {
+      const saved = provider.models.find(model => model.id === entry.id);
+      const model = { ...entry, reasoningEfforts: saved?.reasoningEfforts };
       const limits = getModelLimits(provider.id, model);
       return {
         providerId: provider.id, providerLabel: provider.label, protocol: provider.protocol, modelId: model.id, label: model.label,
@@ -187,11 +201,12 @@ export function referenceContent(protocol: string, prompt: string, references: A
 }
 
 export function streamAi(
-  configured: ReturnType<typeof getConfiguredModel>,
+  configured: Awaited<ReturnType<typeof getConfiguredModel>>,
   context: Context,
   signal: AbortSignal,
   references: Awaited<ReturnType<typeof readAiReferences>> = [],
 ) {
+  signal = accountSignal(signal);
   const { provider, model: configuredModel, baseUrl } = configured;
   const model: Model<typeof provider.protocol> = {
     id: configuredModel.id, name: configuredModel.label, provider: "toonflow", api: provider.protocol, baseUrl,
@@ -199,6 +214,7 @@ export function streamAi(
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: configuredModel.contextWindow,
     maxTokens: configuredModel.maxOutputTokens,
+    compat: configuredModel.compat,
   };
   const files = createFileTransport({ ...provider, apiUrl: baseUrl }, { signal });
   return aiApis[provider.protocol].streamSimple(model, context, {

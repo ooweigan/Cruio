@@ -7,6 +7,7 @@ import { canvasShortcutFields, defaultCanvasShortcuts, getShortcutBindings, isSh
 import { normalizeNodeMenu, type StoredNodeMenuItem } from "@toonflow/server/nodeMenu";
 import type { ReasoningEfforts, ThinkingLevel } from "@toonflow/server/modelReasoning";
 import "element-plus/es/components/message/style/css";
+import { getAccountContext } from "@/lib/accountTransport";
 
 export const settings = ref<Record<string, unknown>>({});
 // ACT: 页面在 loadSettings 完成后才挂载，加载标记仅保留在设置初始化与自动保存内部。
@@ -18,12 +19,10 @@ export const settingsStorage = {
   getItem(key: string) {
     const stores = settings.value.stores as Record<string, unknown> | undefined;
     if (stores && Object.hasOwn(stores, key)) return JSON.stringify(stores[key]);
-    // ACT: 只迁移当前来源可读取的旧缓存，保留原值；不同端口的 localStorage 不能互读。
-    const value = localStorage.getItem(key);
-    if (value !== null) settingsStorage.setItem(key, value);
-    return value;
+    return null;
   },
   setItem(key: string, value: string) {
+    if (!settingsReady) return;
     settings.value.stores = { ...(settings.value.stores as Record<string, unknown> | undefined), [key]: JSON.parse(value) };
   },
 };
@@ -79,23 +78,14 @@ export function updateGeneralSettings(patch: Omit<Partial<typeof generalSettings
   settings.value = { ...settings.value, general: { ...(current && typeof current === "object" && !Array.isArray(current) ? current : {}), ...patch } };
 }
 
-export const privacySettings = computed(() => {
-  const raw = settings.value.privacy;
-  const privacy = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
-  return {
-    dataCollectionEnabled: privacy.dataCollectionEnabled !== false,
-    anonymousId: typeof privacy.anonymousId === "string" ? privacy.anonymousId : "",
-  };
-});
-
 export type CustomProviderModel = { id: string; label: string; contextWindow?: number; maxOutputTokens?: number; reasoningEfforts?: ReasoningEfforts };
 export type CustomProvider = { id: string; label: string; icon?: string; version?: string; apiUrl: string; apiKey: string; protocol: string; models: CustomProviderModel[] };
 export const customProviders = computed<CustomProvider[]>(() => Array.isArray(settings.value.customProviders)
-  ? settings.value.customProviders.filter((item): item is CustomProvider => !!item && typeof item.id === "string" && typeof item.label === "string" && Array.isArray(item.models)
+  ? settings.value.customProviders.filter((item): item is CustomProvider => !!item && item.id === "cruio" && typeof item.label === "string" && Array.isArray(item.models)
     && item.models.every((model: CustomProviderModel) => !!model && typeof model.id === "string" && typeof model.label === "string"))
   : []);
 
-type ResolvedAiModel = { providerId: string; modelId: string; reasoningLevels: ThinkingLevel[] };
+type ResolvedAiModel = { providerId: string; providerLabel: string; modelId: string; label: string; contextWindow?: number; maxOutputTokens?: number; reasoningLevels: ThinkingLevel[] };
 const resolvedModelReasoning = ref<Partial<Record<string, ThinkingLevel[]>>>({});
 export const modelChoices = computed(() => customProviders.value.flatMap(provider => provider.models.map(model => ({
   value: JSON.stringify([provider.id, model.id]), providerId: provider.id, modelId: model.id, label: model.label, contextWindow: model.contextWindow,
@@ -107,35 +97,64 @@ function applyModelReasoning(models: ResolvedAiModel[]) {
 }
 
 async function loadModelReasoning() {
+  const context = getAccountContext();
   const { data } = await axios.get<{ code: number; data: ResolvedAiModel[] }>(
     "/api/ai/models", { headers: { "Cache-Control": "no-cache", "x-toonflow-workspace": "1" } },
   );
   if (data.code !== 200 || !Array.isArray(data.data)) throw new Error("读取模型推理等级失败");
+  if (context !== getAccountContext()) throw new Error("账户已切换，模型加载已停止");
+  settings.value.customProviders = [{ id: "cruio", label: "Cruio", models: data.data.map(model => ({
+    id: model.modelId, label: model.label, contextWindow: model.contextWindow, maxOutputTokens: model.maxOutputTokens,
+  })) }];
   applyModelReasoning(data.data);
 }
 
 export async function loadSettings() {
   if (settingsReady) return;
+  const context = getAccountContext();
   const { data } = await axios.get("/api/settings/get", { headers: { "Cache-Control": "no-cache", "x-toonflow-workspace": "1" } });
   if (settingsReady) return;
+  if (context !== getAccountContext()) throw new Error("账户已切换，设置加载已停止");
   if (data.code !== 200 || !data.data || typeof data.data !== "object" || Array.isArray(data.data)) {
     throw new Error("读取设置失败");
   }
   settings.value = data.data;
-  await loadModelReasoning();
+  await loadModelReasoning().catch(error => {
+    if (context !== getAccountContext() || axios.isAxiosError(error) && [401, 403].includes(error.response?.status ?? 0)
+      && !["modelNotProvisioned", "modelAuthorizationUnavailable"].includes(error.response?.data?.data?.reason)) throw error;
+    // ACT: 模型目录暂时不可用时保留本地项目和设置入口，由生成入口显示实际服务错误。
+    ElMessage.warning("模型目录暂时无法获取，请稍后重试");
+    applyModelReasoning([]);
+  });
   // 等初始化引发的监听执行完，再允许自动保存。
   await nextTick();
+  if (context !== getAccountContext()) throw new Error("账户已切换，设置加载已停止");
   settingsReady = true;
 }
 
+export function resetAccountSettings() {
+  settingsReady = false;
+  settings.value = {};
+  resolvedModelReasoning.value = {};
+  invalidateNodeModels("language");
+  invalidateNodeModels("media");
+}
+
+function writableSettings(value: Record<string, unknown>) {
+  return Object.fromEntries(["ui", "general", "privacy", "personalization", "agentSystemPrompt", "stores", "updateBoxSeenBuilds"]
+    .filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
+}
+
 export function saveSettings(update?: (current: Record<string, unknown>) => Record<string, unknown> | undefined) {
+  const context = getAccountContext();
   // ACT: 队列内读取最新配置再计算变更，确认成功后发布；仅协调当前页面的保存。
   const saving = saveQueue.then(async () => {
+    if (!context || context !== getAccountContext() || !settingsReady) throw new Error("账户已切换，设置保存已停止");
     const patch = update?.(settings.value);
     if (update && !patch) return false;
     const requestedNodeMenu = JSON.stringify(((patch?.general ?? settings.value.general) as { nodeMenu?: unknown } | undefined)?.nodeMenu);
-    const { data } = await axios.put<{ code: number; data: { customProviders?: CustomProvider[]; mediaProvider?: { id: string }; modelRefreshErrors?: string[]; nodeMenu?: StoredNodeMenuItem[] | null; aiModels?: ResolvedAiModel[] } | null }>(
-      "/api/settings/save", { settings: { ...settings.value, ...patch } }, { headers: { "x-toonflow-workspace": "1" } },
+    const { data } = await axios.put<{ code: number; data: { customProviders?: CustomProvider[]; mediaProviderConfigs?: Record<string, unknown>; mediaProvider?: { id: string }; modelRefreshErrors?: string[]; nodeMenu?: StoredNodeMenuItem[] | null; aiModels?: ResolvedAiModel[] } | null }>(
+      "/api/settings/save", { settings: writableSettings({ ...settings.value, ...patch }) }, { headers: { "x-toonflow-workspace": "1", "x-cruio-context": context } },
     );
     if (data.code !== 200) throw new Error("保存设置失败");
     if (data.data?.aiModels) applyModelReasoning(data.data.aiModels);
@@ -143,7 +162,7 @@ export function saveSettings(update?: (current: Record<string, unknown>) => Reco
     if ((patch && Object.hasOwn(patch, "customProviders")) || providers) invalidateNodeModels("language");
     if (patch || providers) {
       applyingSettings = true;
-      try { settings.value = { ...settings.value, ...patch, ...(providers ? { customProviders: providers } : {}) }; }
+      try { settings.value = { ...settings.value, ...patch, ...(providers ? { customProviders: providers } : {}), ...(data.data?.mediaProviderConfigs ? { mediaProviderConfigs: data.data.mediaProviderConfigs } : {}) }; }
       finally { applyingSettings = false; }
     }
     if (data.data && Object.hasOwn(data.data, "nodeMenu")
@@ -161,7 +180,7 @@ export function saveSettings(update?: (current: Record<string, unknown>) => Reco
       invalidateNodeModels("media");
       window.dispatchEvent(new CustomEvent("toonflow:plugin-installed", { detail: { type: "provider", name: data.data.mediaProvider.id } }));
     }
-    if (patch && Object.hasOwn(patch, "mediaProviderConfigs")) {
+    if (patch && (Object.hasOwn(patch, "mediaProviderConfigs") || Object.hasOwn(patch, "customProviders"))) {
       window.dispatchEvent(new Event("toonflow:provider-config-changed"));
     }
     if (data.data?.modelRefreshErrors?.length) ElMessage.warning(`API Key 已保存，部分模型获取失败：${data.data.modelRefreshErrors.join("；")}`);

@@ -26,6 +26,11 @@ export function error<T = unknown>(message: string | MessageDescriptor = "", dat
 }
 
 export function errorFromCause(cause: unknown): ApiResponse {
+  const accountFailure = cause as { accountReason?: string; message?: string; status?: number; retryAfter?: number } | null;
+  if (accountFailure?.accountReason) return error(accountFailure.message, {
+    reason: accountFailure.accountReason,
+    ...(accountFailure.retryAfter ? { retryAfter: accountFailure.retryAfter } : {}),
+  }, accountFailure.status ?? 403);
   if (cause instanceof z.ZodError) {
     return error("参数错误", cause.issues.map(issue => ({ ...issue, message: translateMessage(issue.message) })), 400);
   }

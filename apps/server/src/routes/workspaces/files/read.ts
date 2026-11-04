@@ -10,9 +10,10 @@ import { success } from "@/lib/responseFormat";
 const router = Router();
 
 export default router.get("/", validateFields({ directory: z.string().min(1).max(4096), path: z.string().max(4096), snapshot: z.enum(["true"]).optional(), maxBytes: z.coerce.number().int().positive().max(20 * 1024 * 1024).optional() }, "query"), async (req, res, next) => {
-  const { path } = await u.workspaceFile.resolveWorkspaceFile(req, req.query.directory as string, req.query.path as string);
+  const { directory, path } = await u.workspaceFile.resolveWorkspaceFile(req, req.query.directory as string, req.query.path as string);
   const file = await lstat(path);
   if (!file.isFile()) throw Object.assign(new Error("只能读取文件"), { status: 400 });
+  u.account.trackOpenedFile(res, directory, path);
   res.set("Cache-Control", "no-store");
   if (req.query.snapshot === "true") {
     const maxBytes = req.query.maxBytes === undefined ? undefined : Number(req.query.maxBytes);

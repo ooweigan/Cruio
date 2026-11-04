@@ -115,7 +115,7 @@ export function createAgentToolContext(cwd: string, config: Record<string, unkno
   };
 }
 
-export async function createAgentTools(cwd: string, canvas?: CanvasContext, question?: QuestionContext, includeMcp = true): Promise<ToolDefinition[]> {
+export async function createAgentTools(cwd: string, canvas?: CanvasContext, question?: QuestionContext, includeMcp = false): Promise<ToolDefinition[]> {
   const tools: ToolDefinition[] = [];
   const names = new Set<string>();
   const context = createAgentToolContext(cwd, {}, canvas, question);

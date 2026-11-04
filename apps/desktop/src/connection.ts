@@ -21,7 +21,7 @@ export default async function createDesktopConnection(app: express.Express, dire
 
   async function start() {
     const connection = await createRemoteConnection(directory, {
-      deviceName: `Toonflow ${hostname()}`,
+      deviceName: `Cruio ${hostname()}`,
       appVersion: app.locals.appVersion,
       validateTarget(source) {
         const target = new URL(source);
@@ -76,6 +76,13 @@ export default async function createDesktopConnection(app: express.Express, dire
         if (connection.remote) target.searchParams.set("remote", "1");
         else target.searchParams.delete("remote");
         if (`${target.pathname}${target.search}` !== req.originalUrl) return void res.redirect(`${target.pathname}${target.search}`);
+      }
+      next();
+    });
+    gateway.use((req, res, next) => {
+      if (/^\/api\/connection(?:\/|$)/i.test(req.path)
+        && !(connection.remote && req.method === "POST" && req.path === "/api/connection/disconnect")) {
+        return void res.status(403).json({ code: 403, data: { reason: "forbidden" }, message: "当前版本尚未开放账户的远程设备连接" });
       }
       next();
     });

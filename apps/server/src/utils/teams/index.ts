@@ -7,6 +7,7 @@ import { decodeText, skillPath } from "@/utils/plugins/install";
 import { resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { agentsDirectory, checkName, editablePath, maxBytes, readFiles, validateFiles, withTeamFiles } from "./files";
 import { translateMessage } from "@/lib/i18n";
+import { failure } from "@/utils/account";
 
 export { agentsDirectory, teamNamePattern } from "./files";
 export { installTeam } from "./install";
@@ -14,9 +15,11 @@ export { installTeam } from "./install";
 export type RemoteTeam = { name: string; cardUrl: string; token?: string; enabled: boolean; card: AgentCard };
 const require = createRequire(import.meta.url);
 
-export function getRemoteTeam(name: string) {
+export function getRemoteTeam(name: string): RemoteTeam | undefined {
   checkName(name);
-  return conf.get("remoteConnections", {})[name];
+  const team = conf.get("remoteConnections", {})[name];
+  if (team) throw failure("forbidden", "当前客户版本未开放远端团队接入", 403);
+  return team;
 }
 
 async function readSnapshot(name: string) {
@@ -51,11 +54,7 @@ export async function listTeams() {
           loadError: translateMessage(error instanceof Error ? error.message : String(error)), kind: "local" as const });
       }
     }
-    const remote = Object.values(conf.get("remoteConnections", {})).map(({ name, cardUrl, card, enabled }) => ({
-      name, displayName: card.name, description: card.description, version: card.version, author: "", github: "", readme: "", enabled,
-      loadError: "", kind: "remote" as const, cardUrl,
-    }));
-    return [...local, ...remote].sort((left, right) => left.name.localeCompare(right.name));
+    return local.sort((left, right) => left.name.localeCompare(right.name));
   });
 }
 

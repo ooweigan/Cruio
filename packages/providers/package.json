@@ -9,6 +9,8 @@
   "exports": {
     ".": "./index.ts",
     "./types": "./types.d.ts",
+    "./language/cruio": "./src/language/cruio.ts",
+    "./media/cruio": "./src/media/cruio.ts",
     "./language/tfRouter": "./src/language/tfRouter.ts",
     "./language/deepSeek": "./src/language/deepSeek.ts",
     "./media/tfRouter": "./src/media/tfRouter.ts",

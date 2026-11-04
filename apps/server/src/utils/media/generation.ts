@@ -1,10 +1,11 @@
 import { t, translateMessage } from "@/lib/i18n";
 import { mkdir, readFile, realpath, stat, unlink } from "@toonflow/file";
 import { join, relative } from "node:path";
-import { mediaProviders, type Provider } from "@toonflow/providers";
+import cruio from "@toonflow/providers/media/cruio";
 import type { GeneratedMedia, MediaGenerationRequest, MediaModel, MediaReference } from "@toonflow/tools-scaffold/runtime";
-import conf from "@/utils/conf";
-import { getMediaProvider, listMediaProviders, loadMediaProviderSource } from "@/utils/media/provider";
+import { hasModelCredential, modelCredential, signal as accountSignal, verifyCurrent } from "@/utils/account";
+import { loadMediaProviderSource } from "@/utils/media/provider";
+import { getGatewayModels } from "@/utils/ai/models";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { beginGeneration, getProviderPrice } from "@/utils/media/billing";
 import { detectMimeType, readPriceReference } from "@/utils/media/priceReference";
@@ -22,30 +23,25 @@ function invalid(message: string): never {
   throw Object.assign(new Error(message), { status: 400 });
 }
 
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
-}
-
 function imageOptions(value: unknown, pattern: RegExp) {
   return Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length <= 64 && item === item.trim() && pattern.test(item)))] : undefined;
 }
 
 export async function listMediaModels(): Promise<MediaModel[]> {
-  const installedProviders = await listMediaProviders();
-  return installedProviders.flatMap(provider => provider.models.flatMap(model => {
+  if (!hasModelCredential()) return [];
+  return (await getGatewayModels()).flatMap(model => {
     if (model.type !== "image" && model.type !== "video" && model.type !== "audio") return [];
-    const builtIn = (mediaProviders as readonly Provider[]).find(item => item.id === provider.id)?.models.find(item => item.id === model.id);
     return [{
-      providerId: provider.id, providerLabel: provider.label, modelId: model.id, label: model.label, type: model.type,
-      supportsPrice: "supportsPrice" in provider && provider.supportsPrice === true,
+      providerId: cruio.id, providerLabel: cruio.label, modelId: model.id, label: model.label, type: model.type,
+      supportsPrice: false,
       mode: model.mode, durationResolutionMap: model.durationResolutionMap, audio: model.audio,
       ...(model.type === "audio" ? { voices: model.voices } : {}),
       ...(model.type === "image" ? {
-        imageSizes: imageOptions(Array.isArray(model.imageSizes) ? model.imageSizes : builtIn?.imageSizes, /^[^\u0000-\u001f\u007f]+$/),
-        imageRatios: imageOptions(Array.isArray(model.imageRatios) ? model.imageRatios : builtIn?.imageRatios, /^[1-9]\d{0,3}:[1-9]\d{0,3}$/),
+        imageSizes: imageOptions(model.imageSizes, /^[^\u0000-\u001f\u007f]+$/),
+        imageRatios: imageOptions(model.imageRatios, /^[1-9]\d{0,3}:[1-9]\d{0,3}$/),
       } : {}),
     } as MediaModel];
-  }));
+  });
 }
 
 export async function readReference(cwd: string, reference: MediaReference, mediaType: string, signal?: AbortSignal): Promise<Extract<MediaInput, { type: "base64" }>> {
@@ -135,10 +131,13 @@ async function prepareRequest<T>(directory: string | undefined, mediaType: "imag
 }
 
 async function configuredProvider(request: MediaGenerationRequest, mediaType: "image" | "video" | "audio", signal?: AbortSignal, directory?: string) {
-  const info = await getMediaProvider(request.providerId);
-  if (!info.models.some(model => model.id === request.modelId && model.type === mediaType)) invalid("所选媒体模型不存在或类型不匹配，请重新选择");
-  const configurations = record(conf.get("settings", {}).mediaProviderConfigs);
-  return loadMediaProviderSource(info.source, record(configurations[info.id]), signal, undefined, directory);
+  await verifyCurrent();
+  if (request.providerId !== cruio.id) invalid("模型服务已统一为 Cruio/NewAPI，请重新选择模型");
+  const models = await getGatewayModels();
+  if (!models.some(model => model.id === request.modelId && model.type === mediaType)) invalid("所选媒体模型不存在或类型不匹配，请重新选择");
+  // ACT: 内置适配随发行包更新；目录和凭证取当前账号，避免已安装旧文件继续保留固定白名单。
+  const config = { ...modelCredential(), models };
+  return loadMediaProviderSource(cruio, config, accountSignal(signal), undefined, directory);
 }
 
 async function preparePriceRequest(directory: string | undefined, mediaType: "image" | "video" | "audio", request: MediaGenerationRequest, signal?: AbortSignal) {
@@ -167,6 +166,7 @@ export async function generateMedia(
   request: MediaGenerationRequest,
   signal?: AbortSignal,
 ): Promise<GeneratedMedia[]> {
+  signal = accountSignal(signal);
   signal?.throwIfAborted();
   if (!request.prompt.trim()) invalid("请输入生成提示词");
   const directory = await realpath(cwd);

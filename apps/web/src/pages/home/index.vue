@@ -4,8 +4,8 @@
     <aside id="homeSidebar" class="homeSidebar" aria-label="首页侧栏">
       <div class="sidebarHeader">
         <div class="sidebarBrand">
-          <el-image class="sidebarLogo" :src="logoUrl" fit="contain" alt="Toonflow" />
-          <span class="brandName">Toonflow</span>
+          <el-image class="sidebarLogo" :src="smallLogoUrl" fit="contain" alt="" />
+          <span class="brandName" translate="no">Cruio</span>
         </div>
         <button class="sidebarToggle" type="button" :aria-label="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :title="sidebarCollapsed ? '展开侧栏' : '收起侧栏'" :aria-expanded="!sidebarCollapsed" aria-controls="homeSidebar" @click="sidebarCollapsed = !sidebarCollapsed">
           <icon-layout-sidebar-left-expand v-if="sidebarCollapsed" :size="18" aria-hidden="true" />
@@ -24,13 +24,6 @@
         </button>
       </nav>
       <div class="sidebarFooter">
-        <button class="sidebarItem deviceButton" :class="{ connected: deviceHubEnabled || mobileConnection.online === true }" type="button" :aria-label="mobileConnectionLabel" :title="mobileConnectionLabel" @click="mobileConnectVisible = true">
-          <span class="sidebarIcon">
-            <component :is="deviceHubEnabled || mobileConnection.mode === 'remote' ? IconDeviceDesktop : IconQrcode" :size="18" aria-hidden="true" />
-            <span v-if="deviceHubEnabled || mobileConnection.online === true" class="connectionDot" />
-          </span>
-          <span class="sidebarText">{{ mobileConnectionLabel }}</span>
-        </button>
         <button class="sidebarItem" type="button" :aria-label="hasDesktopUpdate ? '设置，有新版本可用' : '设置'" :title="hasDesktopUpdate ? '设置，有新版本可用' : '设置'" @click="settingsVisible = true">
           <span class="sidebarIcon">
             <icon-settings :size="18" aria-hidden="true" />
@@ -38,10 +31,6 @@
           </span>
           <span class="sidebarText">设置</span>
         </button>
-        <a class="sidebarItem githubLink" href="https://github.com/HBAI-Ltd/Toonflow-app" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
-          <icon-brand-github :size="18" aria-hidden="true" />
-          <span class="sidebarText">GitHub</span>
-        </a>
       </div>
     </aside>
     <el-scrollbar ref="pageScroll" class="pageScroll" @scroll="updateActiveSection">
@@ -49,7 +38,7 @@
         <el-main class="pageContent">
           <section class="creationPanel" data-home-section="home" aria-label="创建项目">
             <div class="brand">
-              <el-image class="brandLogo" :src="logoUrl" fit="contain" alt="Toonflow" />
+              <el-image class="brandLogo" :src="logoUrl" fit="contain" alt="Cruio" />
               <h1>今天要做点什么？</h1>
             </div>
             <div class="promptArea">
@@ -66,32 +55,30 @@
                   <div class="composerFooter">
                     <div class="composerTools">
                       <el-button class="attachmentButton" text circle :icon="IconPaperclip" :disabled="creating || opening" aria-label="添加附件" title="添加附件" @click="attachmentInput?.click()" />
-                      <workspacePicker ref="promptWorkspacePicker" v-model="workspaceDirectory" :disabled="creating || opening" />
                     </div>
                     <div class="sendActions">
                       <modelPopover v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" class="modelSelect" :disabled="creating || opening" />
-                      <el-button class="sendButton" type="primary" :circle="!!workspaceDirectory" :icon="workspaceDirectory ? IconArrowUp : IconFolder" :loading="creating" :disabled="creating || opening" :aria-label="workspaceDirectory ? '发送' : '选择工作目录'" @click="workspaceDirectory ? createProject() : promptWorkspacePicker?.chooseDirectory()">
-                        <template v-if="!workspaceDirectory" #default>选择工作目录</template>
-                      </el-button>
+                      <el-button class="sendButton" type="primary" circle :icon="IconArrowUp" :loading="creating" :disabled="creating || opening" aria-label="新建项目并开始创作" @click="createProject()" />
                     </div>
                   </div>
                 </template>
               </el-card>
-              <p v-if="!workspaceDirectory" class="workspaceHint" role="status">请先选择一个空文件夹作为工作目录，画布和素材会保存在这里。</p>
+              <p class="workspaceHint" :title="creationLocation.directory || ''">创作文件存放于 {{ creationLocation.directory }}</p>
             </div>
           </section>
           <section class="projectList" data-home-section="projects" aria-labelledby="projectListTitle">
             <h2 id="projectListTitle">项目</h2>
+            <el-button text :icon="IconFolder" :disabled="creating || opening" :loading="relocationPicker?.selecting" @click="openExistingProject">打开已有项目</el-button>
             <div class="projectItems">
               <el-card class="projectCard" shadow="never" :bodyStyle="{ padding: '0', height: '100%' }">
-                <button class="projectLaunch" type="button" :disabled="creating || opening || relocationPicker?.selecting" :aria-busy="creating || relocationPicker?.selecting" title="选择空文件夹新建，或打开已有项目" @click="createProject(false)">
+                <button class="projectLaunch" type="button" :disabled="creating || opening || relocationPicker?.selecting" :aria-busy="creating || relocationPicker?.selecting" title="填写名称，自动创建项目目录" @click="createProject(false)">
                   <span class="launchIcon">
                     <icon-loader-2 v-if="creating || relocationPicker?.selecting" class="isLoading" :size="24" aria-hidden="true" />
                     <icon-plus v-else :size="24" aria-hidden="true" />
                   </span>
                   <span class="launchText">
                     <span class="launchTitle">新建项目</span>
-                    <span class="launchDescription">或打开已有项目</span>
+                    <span class="launchDescription">画布与素材自动归档</span>
                   </span>
                 </button>
               </el-card>
@@ -116,7 +103,6 @@
     </el-scrollbar>
     <assetLibraryDialog v-model="assetsVisible" />
     <settings v-model="settingsVisible" />
-    <mobileConnect v-model="mobileConnectVisible" />
     <workspacePicker ref="relocationPicker" hideTrigger />
   </div>
 </template>
@@ -125,12 +111,12 @@
 import { locale, translate } from "@toonflow/i18n/vue";
 import axios from "axios";
 import { storeToRefs } from "pinia";
-import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox, type InputInstance, type ScrollbarInstance } from "element-plus";
 import { getReadableFileMimeType, readableFileAccept } from "@toonflow/server/documentFormats";
 import {
-  IconQrcode, IconDeviceDesktop, IconHome, IconCompass,
+  IconHome, IconCompass,
   IconArrowUp, IconPlus, IconLoader2,
   IconFolder, IconEdit,
   IconTrash, IconPaperclip,
@@ -139,11 +125,11 @@ import modelPopover from "@/components/modelPopover.vue";
 import attachmentList from "@/components/agent/attachmentList.vue";
 import { createPastedTextFile, readTextAttachment } from "@/components/agent/textAttachments";
 import type { AgentAttachment } from "@/components/agent/types";
-import logoUrl from "@toonflow/assets/logo.svg";
+import logoUrl from "@toonflow/assets/logoColor.svg";
+import smallLogoUrl from "@toonflow/assets/logoSmall.svg";
 import { useWorkspaceStore, type Project } from "@/stores/workspace";
 import { hasDesktopUpdate } from "@/stores/desktopUpdate";
-import { deviceHubEnabled, mobileConnection, mobileConnectionLabel } from "@/lib/mobile";
-import useWorkspaceFiles from "@/lib/workspaceFiles";
+import { creationLocation, loadCreationLocation } from "@/stores/creationLocation";
 import { waitForControlValue } from "@/lib/mcpControl";
 import settings from "@/components/settings/index.vue";
 import assetLibraryDialog from "./assetLibraryDialog.vue";
@@ -154,7 +140,6 @@ import workspacePicker from "./workspacePicker.vue";
 
 const settingsVisible = ref(false);
 const assetsVisible = ref(false);
-const mobileConnectVisible = ref(false);
 const sidebarCollapsed = ref(false);
 const pageScroll = ref<ScrollbarInstance>();
 const backgroundScrollTop = ref(0);
@@ -164,12 +149,10 @@ const homeSections = [
   { id: "projects", label: "项目", icon: IconFolder },
   { id: "explore", label: "探索", icon: IconCompass },
 ];
-const mobileConnect = defineAsyncComponent(() => import("@/components/mobileConnect.vue"));
 const router = useRouter();
 const pageLifetime = new AbortController();
 const creating = ref(false);
 const opening = ref(false);
-const promptWorkspacePicker = ref<InstanceType<typeof workspacePicker>>();
 const relocationPicker = ref<InstanceType<typeof workspacePicker>>();
 const prompt = ref("");
 const promptInput = ref<InputInstance>();
@@ -179,8 +162,7 @@ const attachmentAccept = `image/*,video/*,${readableFileAccept}`;
 const draggingAttachments = ref(false);
 let attachmentDragDepth = 0;
 const workspaceStore = useWorkspaceStore();
-const { project, projectList } = storeToRefs(workspaceStore);
-const workspaceDirectory = ref(project.value?.directory ?? "");
+const { projectList } = storeToRefs(workspaceStore);
 const placeholderPhrases = [
   "描述你想创作的内容，让灵感从这里开始…",
   "把一个故事灵感，变成一段精彩的短片…",
@@ -430,14 +412,22 @@ async function renameProject(project: Project) {
 }
 
 async function createProject(fromPrompt = true) {
-  if (creating.value || opening.value || (fromPrompt && !workspaceDirectory.value)) return;
-  const path = fromPrompt ? workspaceDirectory.value : await relocationPicker.value?.chooseDirectory();
-  if (!path || creating.value || opening.value || pageLifetime.signal.aborted) return;
+  if (creating.value || opening.value) return;
+  const result = await ElMessageBox.prompt("项目会自动保存在创作目录的“项目”文件夹中", "新建项目", {
+    inputPlaceholder: "项目名称", confirmButtonText: "创建", cancelButtonText: "取消",
+    inputValidator: value => {
+      const name = value?.trim();
+      return !!name && name.length <= 100 && name !== "." && name !== ".." && !/[\\/:*?"<>|\u0000-\u001f]/.test(name)
+        && !/[. ]$/.test(name) && !/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) || "请输入有效的项目名称（最多 100 个字符）";
+    },
+  }).catch(() => null);
+  if (!result || creating.value || opening.value || pageLifetime.signal.aborted) return;
   creating.value = true;
   try {
-    const { directory, empty } = await useWorkspaceFiles(path).list();
-    if (fromPrompt && !empty) return ElMessage.warning("该文件夹不为空，请重新选择空文件夹；已有项目请使用“新建项目”入口或点击项目列表打开。");
-    if (empty) await useWorkspaceFiles(directory).writeJson("画布1.json", { toonflowCanvas: true, nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }, true);
+    await loadCreationLocation();
+    if (!creationLocation.value.available) { await router.push("/setup"); return; }
+    const { data } = await axios.post<{ data: { directory: string } }>("/api/workspaces/create", { name: result.value.trim() }, { headers: { "x-toonflow-workspace": "1" } });
+    const directory = data.data.directory;
     await workspaceStore.openProject(directory);
     if (fromPrompt && (prompt.value.trim() || promptAttachments.value.length)) {
       workspaceStore.pendingAgentMessage = { directory: workspaceStore.project!.directory, prompt: prompt.value, attachments: [...promptAttachments.value], model: selectedModel.value, reasoningEffort: reasoningEffort.value };
@@ -450,6 +440,13 @@ async function createProject(fromPrompt = true) {
   } finally {
     creating.value = false;
   }
+}
+
+async function openExistingProject() {
+  if (creating.value || opening.value) return;
+  const directory = await relocationPicker.value?.chooseDirectory();
+  if (!directory || pageLifetime.signal.aborted) return;
+  await openProject({ directory, name: directory.split(/[\\/]/).filter(Boolean).at(-1) || directory, lastOpenedAt: 0 });
 }
 </script>
 
@@ -677,7 +674,7 @@ async function createProject(fromPrompt = true) {
               height: clamp(28px, 3.4vw, 44px);
 
               .dark & {
-                filter: invert(1);
+                filter: brightness(0) invert(1);
               }
             }
 

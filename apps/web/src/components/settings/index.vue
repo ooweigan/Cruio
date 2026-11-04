@@ -18,7 +18,7 @@
         </template>
       </aside>
       <section class="content" :aria-label="activePanel.label" tabindex="0">
-        <h2 class="panelTitle">{{ activePanel.label }}</h2>
+        <h2 class="panelTitle" :class="{ accountTitle: activePanel.id === 'account' }">{{ activePanel.label }}</h2>
         <div class="panelContent">
           <transition name="el-fade-in" mode="out-in">
             <keep-alive include="personalization">
@@ -38,43 +38,18 @@
 <script setup lang="ts">
 import { defineAsyncComponent, shallowRef } from "vue";
 import { hasDesktopUpdate } from "@/stores/desktopUpdate";
-import { isMobile } from "@/lib/platform";
 import {
   IconPalette,
   IconSettings,
-  IconPhotoVideo,
-  IconBuildingStore,
   IconInfoCircle,
-  IconCode,
-  IconShieldLock,
-  IconPlugConnected,
   IconUserCog,
-  IconSubtitlesAi,
-  IconDevices,
+  IconUser,
 } from "@tabler/icons-vue";
 
 const settingsPanels = [
+  { id: "account", label: "我的账户", icon: IconUser, component: defineAsyncComponent(() => import("./panels/account.vue")) },
   { id: "ui", label: "界面设置", icon: IconPalette, component: defineAsyncComponent(() => import("./panels/ui.vue")) },
   { id: "general", label: "常规配置", icon: IconSettings, component: defineAsyncComponent(() => import("./panels/general/index.vue")) },
-  {
-    id: "languageModel",
-    label: "文本模型",
-    icon: IconSubtitlesAi,
-    groupLabel: "模型",
-    component: defineAsyncComponent(() => import("./panels/languageModel/index.vue")),
-  },
-  { id: "mediaModel", label: "媒体模型", icon: IconPhotoVideo, component: defineAsyncComponent(() => import("./panels/mediaModel/index.vue")) },
-  {
-    id: "pluginMarket",
-    label: "插件市场",
-    icon: IconBuildingStore,
-    groupLabel: "市场",
-    component: defineAsyncComponent(() => import("./panels/pluginMarket/index.vue")),
-  },
-  { id: "mcp", label: "MCP", icon: IconPlugConnected, groupLabel: "通讯", component: defineAsyncComponent(() => import("./panels/mcp/index.vue")) },
-  ...(!isMobile
-    ? [{ id: "deviceLink", label: "设备互联", icon: IconDevices, component: defineAsyncComponent(() => import("./panels/deviceLink.vue")) }]
-    : []),
   {
     id: "personalization",
     label: "个性化",
@@ -82,8 +57,6 @@ const settingsPanels = [
     groupLabel: "其他",
     component: defineAsyncComponent(() => import("./panels/personalization.vue")),
   },
-  { id: "privacy", label: "隐私", icon: IconShieldLock, component: defineAsyncComponent(() => import("./panels/privacy.vue")) },
-  { id: "developer", label: "开发者选项", icon: IconCode, component: defineAsyncComponent(() => import("./panels/developer/index.vue")) },
   { id: "about", label: "关于", icon: IconInfoCircle, component: defineAsyncComponent(() => import("./panels/about.vue")) },
 ];
 const activePanel = shallowRef(settingsPanels[0]!);
@@ -161,6 +134,8 @@ const visible = defineModel<boolean>({ default: false });
       flex-shrink: 0;
       margin: 0 0 20px;
       font-size: 18px;
+
+      &.accountTitle { font-size: 22px; }
     }
 
     .panelContent {

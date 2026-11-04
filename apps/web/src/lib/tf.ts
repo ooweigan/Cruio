@@ -7,7 +7,6 @@ type TfRequestOptions = { apiKey?: string; signal?: AbortSignal };
 export type TfPayment = { orderNumber: string; payUrl?: string };
 type TfOrder = { orderNumber: string; status: string | number };
 export type TfRechargeSku = { id: number; price: number; integral: number; describe: string };
-export type TfSponsor = { id: number; name: string; logoUrl: string; readme: string };
 type TfResponse<T> = { code: number; data: T; message?: string };
 
 export type TfExploreCategory = { id: string; name: string };
@@ -88,7 +87,7 @@ const client = axios.create({ baseURL: "https://api.toonflow.net" });
 export function getTfApiKey() {
   const provider = customProviders.value.find(isTfRouterProvider);
   const mediaConfigs = settings.value.mediaProviderConfigs as Record<string, { apiKey?: unknown }> | undefined;
-  return [provider?.apiKey, mediaConfigs?.tfRouter?.apiKey]
+  return [settings.value.pluginMarketApiKey, provider?.apiKey, mediaConfigs?.tfRouter?.apiKey]
     .map(key => typeof key === "string" ? key.trim().replace(/^Bearer(?:\s+|$)/i, "").trim() : "")
     .find(Boolean) ?? "";
 }
@@ -239,14 +238,6 @@ export default {
     const download = responseData(data, "获取项目下载地址失败");
     if (!isExploreUrl(download?.downloadUrl) || new URL(download.downloadUrl).protocol !== "https:") throw new Error("项目下载地址无效");
     return download;
-  },
-
-  async getSponsorList(options?: Pick<TfRequestOptions, "signal">): Promise<TfSponsor[]> {
-    const { data } = await client.post<TfResponse<TfSponsor[]>>("/web/sponsor/getSponsorList", null, { signal: options?.signal, timeout: 20000 });
-    const sponsors = responseData(data, "加载赞助商失败");
-    if (!Array.isArray(sponsors) || sponsors.some(item => !item || !Number.isSafeInteger(item.id) || item.id < 1
-      || typeof item.name !== "string" || typeof item.logoUrl !== "string" || typeof item.readme !== "string")) throw new Error("赞助商响应格式不正确");
-    return sponsors;
   },
 
   async queryOrder(orderNumber: string, options?: TfRequestOptions): Promise<TfOrder> {

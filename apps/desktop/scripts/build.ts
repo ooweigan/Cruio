@@ -2,7 +2,7 @@ import { $ } from "bun";
 import { cpSync, existsSync, mkdirSync, realpathSync, rmSync } from "@toonflow/file";
 import { dirname, resolve } from "node:path";
 import copyDocumentPackages from "../../server/scripts/copyDocumentPackages";
-import prepareMacDmg from "./macDmg";
+import prepareMacDmg, { removeMacBuildApp } from "./macDmg";
 
 const projectDir = resolve(import.meta.dir, "../../..");
 const mode = process.argv[2];
@@ -64,11 +64,15 @@ await copyDocumentPackages(resolve(projectDir, "build/desktop/node_modules"));
 if (isIntelMac) {
   // ACT: 共用插件和 Web 构建；Intel Mac 仅将 SDK 适配交给独立的 1.18.1。
   await $`${process.execPath} ${resolve(projectDir, "compat/macIntel/build.ts")} ${mode === "package" ? "build" : mode}`.cwd(projectDir);
+  if (mode === "package") await removeMacBuildApp(resolve(projectDir, "build/desktop/macIntel/stable-macos-x64/cruio.app"));
   process.exit(0);
 }
 const cli = resolve(projectDir, "apps/desktop/node_modules/electrobun/bin/electrobun.cjs");
 if (isMac && mode !== "dev") await prepareMacDmg();
 await $`${process.execPath} ${cli} ${mode === "dev" ? "dev" : "build"} ${mode === "dev" ? [] : ["--env=stable"]}`.cwd(projectDir);
+if (mode === "package" && isMac) {
+  await removeMacBuildApp(resolve(projectDir, `build/desktop/app/stable-macos-${process.arch}/cruio.app`));
+}
 if (mode === "package" && !isMac) {
   await $`${process.execPath} ${resolve(import.meta.dir, "packageWindows.ts")}`.cwd(projectDir);
 }

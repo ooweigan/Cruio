@@ -407,6 +407,7 @@ defineExpose({ canvasId, canvasReady, canvasListReady, getCanvasContext, readDoc
   addNodeAtPointer: () => activeInstance.value?.addNodeAtPointer(),
   openNodeSearch: () => activeInstance.value?.openNodeSearch(),
   mentionSource,
+  get hasUnsavedWork() { return [...instances.values()].some(panel => panel.hasUnsavedWork); },
   get saveBusy() { return fileActionBusy || [...instances.values()].some(panel => panel.saveBusy); },
 });
 </script>

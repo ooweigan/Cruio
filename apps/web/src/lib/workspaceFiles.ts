@@ -3,6 +3,7 @@ import { isMobile, isRemoteConnection } from "./platform";
 import { toValue, type MaybeRefOrGetter } from "vue";
 import { useWorkspaceStore } from "@/stores/workspace";
 import { registerApiLanguage } from "@/lib/i18n";
+import { getAccountUserId, getAccountEpoch } from "@/lib/accountTransport";
 
 type WorkspaceEntry = { name: string; path: string; type: "file" | "directory" };
 export type TextSnapshot = { text: string; revision: string; encoding: "utf-8" | "utf-8-bom" | "utf-16le" | "utf-16be" };
@@ -25,8 +26,11 @@ function invalidateUrls(directory: string, path: string) {
 }
 
 export default function useWorkspaceFiles(directory?: MaybeRefOrGetter<string | undefined>) {
+  const accountUserId = getAccountUserId();
+  const accountEpoch = getAccountEpoch();
   const workspace = directory === undefined ? useWorkspaceStore() : undefined;
   function getDirectory() {
+    if (!accountUserId || accountUserId !== getAccountUserId() || accountEpoch !== getAccountEpoch()) throw new Error("账户已切换，文件操作已停止");
     const path = directory === undefined ? workspace?.project?.directory : toValue(directory);
     if (!path) throw new Error("请先选择工作目录");
     return path;
@@ -54,7 +58,7 @@ export default function useWorkspaceFiles(directory?: MaybeRefOrGetter<string | 
 
   function acquireUrl(path: string, mimeType?: string) {
     const directory = getDirectory();
-    const key = JSON.stringify([directory, path, mimeType]);
+    const key = JSON.stringify([accountEpoch, accountUserId, directory, path, mimeType]);
     let entry = fileUrls.get(key);
     if (!entry) {
       const url = client.get<Blob>("/read", { params: { directory, path }, responseType: "blob" })

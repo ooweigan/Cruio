@@ -9,7 +9,7 @@ import * as mediaProvider from "@/utils/media/provider";
 import * as mediaBilling from "@/utils/media/billing";
 import * as ffmpeg from "@/utils/ffmpeg";
 import * as pluginInstall from "@/utils/plugins/install";
-import conf, { cleanNodeMenuSettings, removeLegacySettings } from "@/utils/conf";
+import conf, { cleanNodeMenuSettings, removeLegacySettings, synchronizeModelGateway } from "@/utils/conf";
 import * as ai from "@/utils/ai";
 import * as plugins from "@/utils/plugins/tools";
 import * as nodePlugins from "@/utils/plugins/nodes";
@@ -18,6 +18,7 @@ import * as agent from "@/agent";
 import * as canvas from "@/agent/bridge/canvas";
 import * as question from "@/agent/bridge/question";
 import * as workspace from "@/utils/workspace";
+import * as workspaceLocation from "@/utils/workspace/location";
 import * as workspaceFile from "@/utils/workspace/files";
 import * as workspaceDownload from "@/utils/workspace/download";
 import * as chatImages from "@/utils/workspace/chatImages";
@@ -31,8 +32,12 @@ import * as teams from "@/utils/teams";
 import * as a2aSettings from "@/agent/a2a/settings";
 import * as personalization from "@/utils/personalization";
 import * as mentionFiles from "@/agent/mentionFiles";
+import * as account from "@/utils/account";
+import * as accountSettings from "@/utils/account/settings";
 
 export default {
+  account,
+  accountSettings,
   assets,
   browser,
   singleAgent,
@@ -47,6 +52,7 @@ export default {
   conf,
   cleanNodeMenuSettings,
   removeLegacySettings,
+  synchronizeModelGateway,
   ai,
   plugins,
   nodePlugins,
@@ -55,6 +61,7 @@ export default {
   canvas,
   question,
   workspace,
+  workspaceLocation,
   workspaceFile,
   workspaceDownload,
   chatImages,

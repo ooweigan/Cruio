@@ -14,6 +14,8 @@ export default router.put("/", validateFields({ directory: z.string().min(1).max
   }
   const { directory, path } = await u.workspaceFile.resolveWorkspaceFile(req, req.query.directory as string, req.query.path as string);
   u.workspaceFile.protectWorkspaceRoot(directory, path);
+  await u.account.authorizeFileSave(directory, path, req.query.exclusive === "true");
+  u.account.trackOpenedFile(res, directory, path);
   const release = u.workspaceFile.lockWorkspaceFiles([path]);
   let revision: string | undefined;
   try {
@@ -36,6 +38,7 @@ export default router.put("/", validateFields({ directory: z.string().min(1).max
         bytes = Buffer.concat([Buffer.from(req.query.encoding === "utf-16be" ? [0xfe, 0xff] : [0xff, 0xfe]), encoded]);
       }
     }
+    await u.account.authorizeFileSave(directory, path, req.query.exclusive === "true");
     await u.workspaceFile.writeWorkspaceFile(path, bytes, req.query.exclusive === "true");
     if (req.query.expectedRevision) revision = createHash("sha256").update(bytes).digest("hex");
   }

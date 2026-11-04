@@ -4,11 +4,13 @@ const startupTarget = process.platform === "darwin" ? (process.arch === "x64" ? 
 
 export default {
   app: {
-    name: "toonflow",
-    identifier: "local.toonflow.desktop",
+    name: "cruio",
+    identifier: "local.cruio.desktop",
     version: process.env.appVersion ?? "2.0.0",
-    urlSchemes: ["toonflow"],
+    urlSchemes: ["cruio"],
   },
+  // 主窗口关闭后由 before-quit 完成异步清理，再退出原生进程。
+  runtime: { exitOnLastWindowClosed: process.platform !== "darwin" },
   build: {
     mainProcess: "bun",
     // ACT: Photon 与 anydoc 按包所在目录读取 WASM/原生文件，保留原包，避免引用构建机路径。

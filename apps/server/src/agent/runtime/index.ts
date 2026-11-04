@@ -28,6 +28,7 @@ import { lockWorkspaceFiles, resolveWorkspacePath } from "@/utils/workspace/file
 import { t } from "@/lib/i18n";
 import { decodeTextFile } from "@/lib/documentFormats";
 import type { ThinkingLevel } from "@/lib/modelReasoning";
+import { signal as accountSignal, onSessionEnd } from "@/utils/account";
 
 type AgentOptions = {
   prompt: string;
@@ -63,11 +64,12 @@ export async function run(
   }: AgentOptions,
   send: (event: AgentEvent) => void
 ) {
+  signal = accountSignal(signal);
   attachments = agentAttachmentsSchema.parse(attachments);
   mentions = agentMentionsSchema.parse(mentions);
   validateMentionTokens(prompt, mentions);
   if (!prompt.trim() && !attachments.length && !mentions.length) throw Object.assign(new Error("请输入消息、提及或添加附件"), { status: 400 });
-  getAgentModelConfiguration(providerId, modelId, thinkingLevel);
+  await getAgentModelConfiguration(providerId, modelId, thinkingLevel);
   const attachmentContents: (z.infer<typeof agentAttachmentsSchema>[number] & { content?: string })[] = [];
   for (const attachment of attachments) {
     const { path } = await resolveWorkspacePath(cwd, attachment.path);
@@ -115,6 +117,7 @@ export async function run(
   const controller = new AbortController();
   signal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
   const finished = Promise.withResolvers<void>();
+  const releaseAccount = onSessionEnd(async () => { controller.abort(); onCancel?.(); await finished.promise; });
   let unregister = () => {};
   let mentionFiles: string[] = [];
   let messageAccepted = false;
@@ -452,6 +455,7 @@ export async function run(
     }
   } finally {
     unregister();
+    releaseAccount();
     release();
     finished.resolve();
     if (!messageAccepted) await Promise.all(mentionFiles.map(path => unlink(path)));

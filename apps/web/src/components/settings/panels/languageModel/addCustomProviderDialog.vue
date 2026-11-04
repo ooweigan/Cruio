@@ -13,7 +13,7 @@
     <el-scrollbar maxHeight="65vh">
       <el-form ref="providerForm" :model="form" :rules="rules" labelPosition="top" :disabled="saving" class="customProviderForm">
         <div class="formGrid">
-          <el-form-item label="Provider ID" prop="id"><el-input v-model="form.id" placeholder="例如 myProvider" /></el-form-item>
+          <el-form-item label="Provider ID" prop="id"><el-input v-model="form.id" :disabled="!!provider" placeholder="例如 myProvider" /></el-form-item>
           <el-form-item label="显示名称" prop="label"><el-input v-model="form.label" placeholder="供应商的显示名称" /></el-form-item>
           <el-form-item label="API 地址" prop="apiUrl"><el-input v-model="form.apiUrl" dir="ltr" placeholder="https://api.example.com/v1" /></el-form-item>
           <el-form-item label="API 协议" prop="protocol">

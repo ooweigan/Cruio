@@ -1,449 +1,244 @@
 <template>
-  <main class="hello" :class="{ configuring: view !== 'welcome' }">
-    <div class="pageLanguage"><languageSelect popover /></div>
-    <section class="welcomePanel" aria-labelledby="welcomeTitle">
-      <div v-if="view !== 'welcome'" class="providerContent">
-        <header class="providerHeader">
-          <el-button text :icon="IconArrowLeft" :disabled="saving" @click="view = 'welcome'">返回</el-button>
-          <h1 id="welcomeTitle">{{ view === "login" ? "登录 TF-Router" : "配置语言模型" }}</h1>
-        </header>
-        <div v-if="view === 'login'" v-loading="saving" class="loginBody" element-loading-text="正在配置文本模型和媒体模型…">
-          <iframe ref="loginFrame" class="loginFrame" :src="loginUrl" title="TF-Router 登录与注册" />
-        </div>
-        <div v-else class="providerBody">
-          <languageModel />
-        </div>
-        <div v-if="view === 'login' && loginError" class="loginFeedback" role="status">
-          <el-alert :title="loginError" type="error" :closable="false" showIcon />
-          <el-button v-if="loginKey" type="primary" :loading="saving" @click="configureProviders">重试配置</el-button>
-        </div>
-        <el-button
-          v-else-if="view === 'custom'"
-          type="primary"
-          :loading="saving"
-          :disabled="!customProviders.some((provider) => provider.models.length)"
-          @click="completeSetup">
-          开始使用
-        </el-button>
+  <main class="hello">
+    <section class="loginPanel" aria-labelledby="loginTitle">
+      <header class="pageHeader">
+        <span class="brandName" translate="no"><img class="brandLogo" :src="logoUrl" alt="" />Cruio</span>
+        <languageSelect popover />
+      </header>
+      <div v-if="!accountReady && accountBusy" class="restoreState" role="status" aria-live="polite">
+        <span id="loginTitle" class="restoreBrand" translate="no">Cruio</span>
+        <p>正在加载…</p>
       </div>
-      <div v-else class="welcomeContent">
-        <h1 id="welcomeTitle">快速开始</h1>
-        <p class="description">选择登录TF-Router可直接自动配置，无需任何复杂操作，即可开始创作。</p>
-
-        <el-button class="loginButton" type="primary" @click="openLogin">
-          <icon-login class="buttonIcon" />
-          登录 TF-Router 自动配置
-        </el-button>
-        <el-button class="mobileConnectButton" :type="deviceHubEnabled ? 'success' : undefined" :plain="deviceHubEnabled" :icon="deviceHubEnabled || mobileConnection.mode === 'remote' ? IconDeviceDesktop : IconQrcode" @click="mobileConnectVisible = true">{{ mobileConnectionLabel }}</el-button>
-        <div class="secondaryActions">
-          <el-button class="secondaryButton" round @click="view = 'custom'">
-            <icon-key class="buttonIcon" />
-            添加私有提供商
-          </el-button>
-          <span class="separator">或</span>
-          <el-button class="secondaryButton" round :loading="saving" @click="completeSetup">稍后配置</el-button>
+      <div v-else class="loginContent">
+        <h1 id="loginTitle">登录 Cruio</h1>
+        <p class="description">登录后，继续你的创作。</p>
+        <div v-if="isAuthenticated" class="loginForm">
+          <p v-if="!accountError">正在加载…</p>
+          <p v-if="accountError" class="loginError" role="alert">{{ accountError }}</p>
+          <button class="loginButton" type="button" :disabled="accountBusy" @click="retryAccount">{{ accountBusy ? '正在加载…' : '重试' }}</button>
+          <button class="retryButton" type="button" :disabled="accountBusy" @click="requestLogout">退出当前账号</button>
         </div>
+        <form v-else class="loginForm" :aria-busy="submitting" novalidate @submit.prevent="submitLogin">
+          <div class="formField">
+            <label for="loginAccount">账号</label>
+            <div class="inputShell" :class="{ invalid: accountMissing }">
+              <icon-user :size="20" aria-hidden="true" />
+              <input id="loginAccount" ref="accountInput" v-model="account" name="username" autocomplete="username" autocapitalize="none" :spellcheck="false"
+                placeholder="输入你的账号" :readonly="submitting" :aria-invalid="accountMissing" :aria-describedby="accountMissing ? 'accountFieldError' : undefined"
+                @input="accountMissing = false" />
+            </div>
+            <p v-if="accountMissing" id="accountFieldError" class="fieldError">请输入账号</p>
+          </div>
+          <div class="formField">
+            <label for="loginPassword">密码</label>
+            <div class="inputShell" :class="{ invalid: passwordMissing }">
+              <icon-lock :size="20" aria-hidden="true" />
+              <input id="loginPassword" ref="passwordInput" v-model="password" name="password" :type="passwordVisible ? 'text' : 'password'" autocomplete="current-password"
+                placeholder="输入密码" :readonly="submitting" :aria-invalid="passwordMissing" :aria-describedby="passwordMissing ? 'passwordFieldError' : undefined"
+                @input="passwordMissing = false" />
+              <button class="passwordToggle" type="button" :aria-label="passwordVisible ? '隐藏密码' : '显示密码'" :aria-pressed="passwordVisible" @click="passwordVisible = !passwordVisible">
+                <icon-eye v-if="passwordVisible" :size="20" aria-hidden="true" />
+                <icon-eye-off v-else :size="20" aria-hidden="true" />
+              </button>
+            </div>
+            <p v-if="passwordMissing" id="passwordFieldError" class="fieldError">请输入密码</p>
+          </div>
+          <div v-if="serviceUnavailable && !loginError && !accountError" class="serviceNotice" role="status">
+            <icon-info-circle :size="19" aria-hidden="true" />
+            <p>暂时无法登录，请稍后重试。</p>
+          </div>
+          <p v-if="loginError || accountError" class="loginError" role="alert">{{ loginError || accountError }}</p>
+          <button class="loginButton" type="submit" :disabled="accountBusy || submitting || serviceUnavailable">{{ submitting ? '正在登录…' : '登录' }}</button>
+          <button v-if="serviceUnavailable || accountError" class="retryButton" type="button" :disabled="accountBusy" @click="retryAccount">{{ accountBusy ? '正在重试…' : '重试' }}</button>
+          <a v-if="accountBootstrap?.supportUrl" class="helpLink" :href="accountBootstrap.supportUrl" target="_blank" rel="noopener noreferrer">联系支持</a>
+        </form>
       </div>
-
       <footer class="pageFooter">
-        <p>© {{ new Date().getFullYear() }} Toonflow · 保留所有权利。</p>
+        <p>项目文件保存在本机。</p>
+        <p v-if="accountReady && !accountBootstrap.rememberSession">重启 Cruio 后需重新登录。</p>
+        <nav v-if="accountBootstrap?.termsUrl || accountBootstrap?.privacyUrl" class="legalLinks" aria-label="法律条款">
+          <a v-if="accountBootstrap.termsUrl" :href="accountBootstrap.termsUrl" target="_blank" rel="noopener noreferrer">用户协议</a>
+          <a v-if="accountBootstrap.privacyUrl" :href="accountBootstrap.privacyUrl" target="_blank" rel="noopener noreferrer">隐私政策</a>
+        </nav>
       </footer>
     </section>
-    <div class="artPanel" aria-hidden="true">
-      <bg class="artBg" />
-      <div class="artBrand">
-        <span class="artLogo" v-html="logoSvg" />
-        <span class="artName">Toonflow</span>
-      </div>
-    </div>
-    <mobileConnect v-model="mobileConnectVisible" />
+    <aside class="artPanel" aria-hidden="true">
+      <img class="creativeArt" :src="creativeLoginArt" alt="" />
+      <p class="artCaption"><span />从想法，到作品。</p>
+    </aside>
   </main>
 </template>
 
 <script setup lang="ts">
-import axios from "axios";
-import { defineAsyncComponent, onMounted, onBeforeUnmount, ref } from "vue";
-import { useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
-import { IconArrowLeft, IconQrcode, IconDeviceDesktop } from "@tabler/icons-vue";
-import tfRouter from "@toonflow/providers/language/tfRouter";
-import tfRouterSource from "@toonflow/providers/media/tfRouter?raw";
-import { invalidateNodeModels } from "@toonflow/nodes-scaffold/nodeAi";
-import { customProviders, saveSettings } from "@/stores/settings";
-import type { MediaProvider } from "@/components/settings/panels/mediaModel/types";
-import { useHelloStore } from "@/stores/hello";
-import anonymousData from "@/lib/anonymousData";
-import logoSvg from "@toonflow/assets/logo.svg?raw";
-import bg from "./bg.vue";
+import { computed, onBeforeUnmount, ref } from "vue";
+import { IconEye, IconEyeOff, IconInfoCircle, IconLock, IconUser } from "@tabler/icons-vue";
 import languageSelect from "@/components/languageSelect.vue";
-import { deviceHubEnabled, mobileConnection, mobileConnectionLabel } from "@/lib/mobile";
+import { accountBootstrap, accountBusy, accountError, accountReady, isAuthenticated, loadAccount, loginAccount, requestLogout } from "@/stores/account";
+import creativeLoginArt from "./creativeLoginArt.png";
+import logoUrl from "@toonflow/assets/logoColor.svg";
 
-const languageModel = defineAsyncComponent(() => import("@/components/settings/panels/languageModel/index.vue"));
-const mobileConnect = defineAsyncComponent(() => import("@/components/mobileConnect.vue"));
-const mobileConnectVisible = ref(false);
-const view = ref<"welcome" | "login" | "custom">("welcome");
-const loginUrl = ref("https://api.toonflow.net/login?type=toonflow");
-const loginOrigin = new URL(loginUrl.value).origin;
-const loginFrame = ref<HTMLIFrameElement>();
-const loginKey = ref("");
+const account = ref("");
+const password = ref("");
+const passwordVisible = ref(false);
+const accountMissing = ref(false);
+const passwordMissing = ref(false);
+const submitting = ref(false);
 const loginError = ref("");
-const saving = ref(false);
-const router = useRouter();
-const hello = useHelloStore();
-let loginRequest: AbortController | undefined;
+const accountInput = ref<HTMLInputElement>();
+const passwordInput = ref<HTMLInputElement>();
+const serviceUnavailable = computed(() => !accountBootstrap.value?.configured);
 
-function openLogin() {
-  const url = new URL(loginUrl.value);
-  const pageStyle = getComputedStyle(document.documentElement);
-  url.searchParams.set("bgcolor", "white");
-  url.searchParams.set("txtcolor", pageStyle.getPropertyValue("--el-color-primary").trim());
-  loginUrl.value = url.href;
-  loginKey.value = loginError.value = "";
-  view.value = "login";
-}
-
-async function completeSetup() {
-  if (saving.value) return;
-  saving.value = true;
-  try {
-    await hello.complete();
-    anonymousData.track(view.value === "custom" ? "onboarding.complete" : "onboarding.skip");
-    await router.replace("/home");
-  } catch {
-    ElMessage.error("保存引导状态失败，请重试");
-  } finally {
-    saving.value = false;
-  }
-}
-
-function receiveLogin(event: MessageEvent) {
-  if (view.value !== "login" || saving.value || event.origin !== loginOrigin || event.source !== loginFrame.value?.contentWindow) return;
-  const data = event.data;
-  if (!data || typeof data !== "object" || !["register", "login"].includes(data.type)) return;
-  if (data.msg === "failed") {
-    loginKey.value = "";
-    loginError.value = typeof data.error === "string" && data.error.trim() ? data.error : data.type === "register" ? "注册失败" : "登录失败";
-    return;
-  }
-  if (data.msg !== "success") return;
+async function submitLogin() {
+  if (accountBusy.value || submitting.value || serviceUnavailable.value) return;
+  accountMissing.value = !account.value.trim();
+  passwordMissing.value = !password.value;
   loginError.value = "";
-  if (data.type === "register") {
-    ElMessage.success("注册成功，请继续登录以自动配置模型");
+  if (accountMissing.value || passwordMissing.value) {
+    (accountMissing.value ? accountInput : passwordInput).value?.focus();
     return;
   }
-  if (typeof data.key !== "string" || !data.key.trim() || data.key.length > 8192) {
-    loginKey.value = "";
-    loginError.value = "登录未返回有效的 API Key，请重新登录";
-    return;
-  }
-  loginKey.value = data.key.trim();
-  void configureProviders();
-}
-
-async function configureProviders() {
-  if (saving.value || !loginKey.value) return;
-  saving.value = true;
-  loginError.value = "";
-  const apiKey = loginKey.value;
-  const request = new AbortController();
-  loginRequest = request;
+  submitting.value = true;
   try {
-    const mediaResponse = await axios.get<{ code: number; data: MediaProvider[] }>("/api/providers/media/list", { signal: request.signal });
-    if (mediaResponse.data.code !== 200 || !Array.isArray(mediaResponse.data.data)) throw new Error("读取媒体供应商失败，请重试配置");
-    request.signal.throwIfAborted();
-    if (!mediaResponse.data.data.some((provider) => provider.id === tfRouter.id)) {
-      await axios.post("/api/providers/media/add", { source: tfRouterSource }, { signal: request.signal });
-    }
-    request.signal.throwIfAborted();
-    // ACT: 媒体文件已安装但保存失败时保留文件，重试通过列表复用，不覆盖用户编辑的模型。
-    await saveSettings(settings => {
-      request.signal.throwIfAborted();
-      const providers = settings.customProviders ?? [];
-      if (!Array.isArray(providers)) throw new Error("语言模型配置格式无效");
-      const configs = settings.mediaProviderConfigs as Record<string, Record<string, unknown>> | undefined;
-      if (configs !== undefined && (!configs || typeof configs !== "object" || Array.isArray(configs))) throw new Error("媒体供应商配置格式无效");
-      const current = configs?.[tfRouter.id];
-      if (current !== undefined && (!current || typeof current !== "object" || Array.isArray(current))) throw new Error("当前供应商配置格式无效");
-      const index = providers.findIndex(provider => typeof provider?.id === "string" && provider.id.toLowerCase() === tfRouter.id.toLowerCase());
-      const previous = providers[index];
-      const provider = {
-        ...previous,
-        id: previous?.id ?? tfRouter.id,
-        label: previous?.label ?? tfRouter.label,
-        icon: previous?.icon ?? tfRouter.icon,
-        apiUrl: tfRouter.apiUrl,
-        protocol: tfRouter.protocol,
-        apiKey,
-        models: previous?.models ?? [],
-      };
-      return {
-        customProviders: index < 0 ? [...providers, provider] : providers.map((item, position) => position === index ? provider : item),
-        mediaProviderConfigs: { ...configs, [tfRouter.id]: { ...current, apiKey } },
-      };
-    });
-    invalidateNodeModels("media");
-    if (request.signal.aborted) return;
-    await hello.complete();
-    anonymousData.track("onboarding.complete");
-    loginKey.value = "";
-    ElMessage.success("TF-Router API Key 已配置完成");
-    await router.replace("/home");
+    await loginAccount(account.value.trim(), password.value);
+    password.value = "";
+    passwordVisible.value = false;
   } catch (error) {
-    if (!request.signal.aborted)
-      loginError.value = axios.isAxiosError(error)
-        ? error.response?.data?.message || "自动配置失败，请重试"
-        : error instanceof Error
-        ? error.message
-        : "自动配置失败，请重试";
+    loginError.value = error instanceof Error ? error.message : "登录失败，请重试。";
   } finally {
-    saving.value = false;
+    submitting.value = false;
   }
 }
 
-onMounted(() => {
-  window.addEventListener("message", receiveLogin);
-});
-onBeforeUnmount(() => {
-  window.removeEventListener("message", receiveLogin);
-  loginRequest?.abort();
-  loginKey.value = "";
-});
+async function retryAccount() {
+  loginError.value = "";
+  try {
+    await loadAccount(true);
+  } catch (error) {
+    loginError.value = error instanceof Error ? error.message : "暂时无法登录，请稍后重试。";
+  }
+}
+
+onBeforeUnmount(() => { password.value = ""; });
 </script>
 
 <style lang="scss" scoped>
 .hello {
+  --accountLink: #1c64b5;
+  --accountBorder: #858d99;
+  --accountError: #b42318;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(420px, 38.4%) minmax(0, 1fr);
   min-height: 100svh;
-  padding: 8px;
   background: var(--el-bg-color);
   color: var(--el-text-color-primary);
   font-family: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 
-  .pageLanguage {
-    position: fixed;
-    top: 16px;
-    inset-inline-end: calc(50% + 8px);
-    z-index: 2;
-    max-width: calc(50% - 24px);
+  a, button, input {
+    &:focus-visible { outline: 2px solid var(--accountLink); outline-offset: 4px; }
   }
-
-  .welcomePanel {
+  .loginPanel {
     display: grid;
-    grid-template-rows: 1fr auto 1fr;
-    gap: 32px;
+    grid-template-rows: auto 1fr auto;
     min-width: 0;
-    min-height: 544px;
-    padding: 48px clamp(24px, 4.4vw, 64px);
+    min-height: 700px;
+    padding: 30px clamp(28px, 5.05vw, 76px) 48px;
 
-    .providerContent {
-      grid-row: 1;
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
-      gap: 24px;
-      min-width: 0;
-      min-height: 0;
-      overflow: hidden;
-
-      .providerHeader {
-        h1 {
-          margin: 16px 0 0;
-          font-size: 28px;
-          font-weight: 650;
+    .pageHeader {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-inline: -24px;
+      .brandName {
+        display: inline-flex; align-items: center; gap: 9px; font-size: 26px; font-weight: 650; letter-spacing: -0.7px;
+        .brandLogo {
+          width: 36px; height: 36px;
+          .dark & { filter: brightness(0) invert(1); }
         }
       }
-
-      .providerBody {
-        min-height: 0;
-        overflow-y: auto;
-        overscroll-behavior: contain;
-        padding: 2px;
-      }
-
-      .loginBody {
-        min-height: 0;
-        overflow-y: hidden;
-        overscroll-behavior: contain;
-        background-color: #fff;
-        border-radius: var(--ui-radius);
-        width: 500px;
-
-        .loginFrame {
-          display: block;
-          width: 100%;
-          height: 100%;
-          min-height: 640px;
-          border: 0;
-          background: transparent;
+      :deep(.languageTrigger) { border-color: transparent; border-radius: 8px; background: transparent; }
+    }
+    .restoreState {
+      align-self: center; text-align: center; color: var(--el-text-color-regular);
+      .restoreBrand { color: var(--el-text-color-primary); font-size: 32px; font-weight: 600; }
+      p { margin-top: 20px; font-size: 14px; }
+    }
+    .loginContent {
+      align-self: center; width: 100%; max-width: 400px; margin: 64px auto;
+      h1 { margin: 0; font-size: clamp(32px, 3.3vw, 44px); line-height: 1.35; font-weight: 600; letter-spacing: -1px; }
+      .description { margin: 12px 0 40px; color: var(--el-text-color-regular); font-size: 17px; line-height: 1.6; }
+      .loginForm {
+        display: flex; flex-direction: column; gap: 24px;
+        .formField {
+          label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; line-height: 1.5; }
+          .inputShell {
+            display: flex; align-items: center; gap: 14px; min-height: 50px; padding-inline: 16px 6px;
+            border: 1px solid var(--accountBorder); border-radius: 8px; background: var(--el-fill-color-light);
+            color: var(--el-text-color-regular); transition: border-color 150ms;
+            &.invalid { border-color: var(--accountError); }
+            &:focus-within { outline: 2px solid var(--accountLink); outline-offset: 2px; }
+            > svg { flex-shrink: 0; }
+            input {
+              width: 100%; min-width: 0; height: 48px; padding: 0; border: 0; outline: none;
+              background: transparent; color: var(--el-text-color-primary); font: inherit; font-size: 15px;
+              &::placeholder { color: var(--el-text-color-secondary); }
+              &:focus-visible { outline: none; }
+            }
+            .passwordToggle {
+              display: grid; flex-shrink: 0; place-items: center; width: 40px; height: 40px; padding: 0;
+              border: 0; border-radius: 6px; background: transparent; color: var(--el-text-color-regular); cursor: pointer;
+              &:hover { background: var(--el-fill-color); }
+            }
+          }
+          .fieldError { margin: 8px 0 0; color: var(--accountError); font-size: 13px; line-height: 1.5; }
         }
-      }
-
-      .loginFeedback {
-        display: grid;
-        gap: 12px;
+        .serviceNotice {
+          display: flex; align-items: flex-start; gap: 8px; color: var(--el-text-color-regular); font-size: 13px; line-height: 1.6;
+          > svg { flex-shrink: 0; margin-top: 1px; }
+          p { margin: 0; }
+        }
+        .loginError { margin: 0; color: var(--accountError); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+        .loginButton {
+          width: 100%; min-height: 50px; padding: 12px 16px; border: 1px solid transparent; border-radius: 8px;
+          background: #2475d0; color: #fff; font: inherit; font-size: 16px; font-weight: 500; cursor: pointer; transition: background-color 150ms;
+          &:hover:not(:disabled) { background: #1c64b5; }
+          &:disabled { cursor: not-allowed; background: var(--el-fill-color); color: var(--el-text-color-secondary); border-color: var(--el-border-color); }
+        }
+        .retryButton, .helpLink { align-self: flex-start; color: var(--accountLink); font: inherit; font-size: 14px; line-height: 1.5; }
+        .retryButton { min-height: 40px; padding: 0; border: 0; background: transparent; cursor: pointer; &:disabled { cursor: wait; } }
+        .helpLink { text-decoration: none; &:hover { text-decoration: underline; } }
       }
     }
-
-    .welcomeContent {
-      grid-row: 2;
-      width: 100%;
-      max-width: 420px;
-      text-align: center;
-
-      h1 {
-        margin: 0 0 12px;
-        font-size: clamp(32px, 3.4vw, 40px);
-        font-weight: 650;
-        line-height: 1.35;
-        letter-spacing: -0.8px;
-      }
-
-      .description {
-        margin: 0 0 32px;
-        color: var(--el-text-color-secondary);
-        font-size: 14px;
-        line-height: 1.8;
-      }
-
-      .buttonIcon {
-        width: 18px;
-        height: 18px;
-        margin-inline-end: 8px;
-      }
-
-      .loginButton {
-        width: 100%;
-        height: auto;
-        min-height: 50px;
-        padding: 12px;
-        white-space: normal;
-        border-radius: calc(var(--ui-radius) * 1.625);
-        font-size: 16px;
-        font-weight: 600;
-      }
-
-      .secondaryActions {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        margin-top: 20px;
-
-        .separator {
-          color: var(--el-text-color-secondary);
-          font-size: 13px;
-        }
-
-        .secondaryButton {
-          height: auto;
-          min-height: 36px;
-          margin: 0;
-          padding: 8px 16px;
-          white-space: normal;
-          font-size: 13px;
-        }
-      }
-
-      .mobileConnectButton { width: 100%; margin: 12px 0 0; min-height: 42px; }
-    }
-
     .pageFooter {
-      grid-row: 3;
-      align-self: end;
-      color: var(--el-text-color-secondary);
-      font-size: 12px;
-
-      p {
-        margin: 10px 0 0;
-        line-height: 1.6;
+      width: 100%; max-width: 400px; margin-inline: auto; color: var(--el-text-color-regular); font-size: 12px; line-height: 1.6;
+      p { margin: 0; }
+      .legalLinks {
+        display: flex; flex-wrap: wrap; gap: 12px 20px; margin-top: 16px; padding-top: 18px; border-top: 1px solid var(--el-border-color);
+        a { color: inherit; text-decoration: none; &:hover { color: var(--accountLink); text-decoration: underline; } }
       }
     }
   }
-
-  &.configuring {
-    height: 100dvh;
-    min-height: 0;
-    overflow: hidden;
-
-    .welcomePanel {
-      grid-template-rows: minmax(0, 1fr) auto;
-      gap: 24px;
-      min-height: 0;
-
-      .pageFooter {
-        grid-row: 2;
-      }
-    }
-  }
-
   .artPanel {
-    position: relative;
-    min-width: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-end;
-    padding: 28px;
-    border-radius: calc(var(--ui-radius) * 1.125);
-    overflow: hidden;
-    background: radial-gradient(ellipse at 76% 82%, #f3dcb1 0%, transparent 46%), radial-gradient(ellipse at 25% 52%, #667ab5 0%, transparent 52%),
-      radial-gradient(ellipse at 90% 18%, #369889 0%, transparent 48%), linear-gradient(145deg, #123f38, #467f72 48%, #a8c9ad);
-
-    .artBg {
-      z-index: 0;
-    }
-
-    .artBrand {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      color: #fff;
-
-      .artLogo {
-        width: 44px;
-        height: 44px;
-        line-height: 0;
-
-        :deep(svg) {
-          display: block;
-          width: 100%;
-          height: 100%;
-        }
-
-        :deep(path) {
-          fill: #fff;
-        }
-      }
-
-      .artName {
-        font-size: 30px;
-        font-weight: 600;
-        letter-spacing: 0.4px;
-      }
+    position: relative; min-width: 0; overflow: hidden; background: #0c1b27;
+    .creativeArt { display: block; position: absolute; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    .artCaption {
+      position: absolute; inset-inline-end: 7%; bottom: 4%; display: flex; align-items: center; gap: 20px; margin: 0;
+      color: #e3e9f2; font-size: clamp(16px, 1.5vw, 22px); letter-spacing: 2px;
+      span { width: 40px; height: 1px; background: #74899e; }
     }
   }
-
-  @media (max-width: 700px) {
+  @media (max-width: 1099px) {
     grid-template-columns: 1fr;
-
-    .pageLanguage {
-      inset-inline-end: 16px;
-      max-width: calc(100% - 32px);
-    }
-
-    .welcomePanel {
-      padding: 32px 20px;
-
-      .welcomeContent {
-        justify-self: center;
-      }
-    }
-
-    .artPanel {
-      display: none;
+    .loginPanel { min-height: 100svh; padding-inline: 48px; .pageHeader { margin-inline: 0; } }
+    .artPanel { display: none; }
+  }
+  @media (max-width: 699px) {
+    .loginPanel {
+      padding: 20px 24px 28px;
+      .pageHeader { gap: 8px; .brandName { font-size: 24px; } }
+      .loginContent { margin-block: 56px; h1 { font-size: 32px; } .description { font-size: 16px; } }
     }
   }
+}
+:global(html.dark .hello) { --accountLink: #66b1ff; --accountBorder: #737780; --accountError: #ff9292; }
+@media (prefers-reduced-motion: reduce) {
+  .hello .loginPanel .loginContent .loginForm .formField .inputShell,
+  .hello .loginPanel .loginContent .loginForm .loginButton { transition: none; }
 }
 </style>
