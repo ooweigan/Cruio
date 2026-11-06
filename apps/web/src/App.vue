@@ -60,6 +60,7 @@ import { desktopUpdateSnapshot, stopDesktopUpdateObservation } from "@/stores/de
 import { useWorkspaceStore } from "@/stores/workspace";
 import loadingPage from "@/components/loadingPage.vue";
 import { useMcpControl } from "@/lib/mcpControl";
+import { useDesktopMenu } from "@/lib/desktopMenu";
 import ffmpegRequired from "@/components/settings/ffmpegRequired.vue";
 import updateBox from "@/components/updateBox.vue";
 import accountDialogs from "@/components/accountDialogs.vue";
@@ -67,6 +68,7 @@ import { isAuthenticated } from "@/stores/account";
 import "element-plus/theme-chalk/dark/css-vars.css";
 
 useMcpControl();
+useDesktopMenu();
 const workspaceStore = useWorkspaceStore();
 
 // ACT: TDesign 缺少的语言使用英语基底，聊天控件由应用字典补齐。

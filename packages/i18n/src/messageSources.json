@@ -228,7 +228,8 @@
   ],
   "画布操作失败": [
     "apps/web/src/components/agent/conversation.vue",
-    "apps/web/src/pages/workspace/panels/canvas/components/nodeMenu.vue"
+    "apps/web/src/pages/workspace/panels/canvas/components/nodeMenu.vue",
+    "apps/web/src/lib/desktopMenu.ts"
   ],
   "画布操作已取消": [
     "apps/web/src/components/agent/conversation.vue"
@@ -427,7 +428,8 @@
   ],
   "文件": [
     "apps/web/src/components/agent/mentionMenu.vue",
-    "apps/web/src/pages/workspace/panels/document/components/fileTree.vue"
+    "apps/web/src/pages/workspace/panels/document/components/fileTree.vue",
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "画布": [
     "apps/web/src/components/agent/mentionMenu.vue",
@@ -1601,7 +1603,7 @@
     "apps/web/src/components/settings/panels/mcp/index.vue",
     "apps/web/src/lib/i18n.ts",
     "apps/web/src/pages/workspace/panels/document/components/fileTree.vue",
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "复制配对码": [
     "apps/web/src/components/settings/panels/deviceLink.vue"
@@ -1626,7 +1628,7 @@
     "apps/web/src/components/settings/panels/deviceLink.vue",
     "apps/web/src/lib/canvasShortcuts.ts",
     "apps/web/src/pages/workspace/panels/canvas/components/nodeMenu.vue",
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "等待设备连接": [
     "apps/web/src/components/settings/panels/deviceLink.vue"
@@ -2022,7 +2024,7 @@
     "apps/web/src/components/settings/panels/mediaModel/editProviderDialog.vue",
     "apps/web/src/components/settings/panels/personalization.vue",
     "apps/web/src/components/settings/panels/pluginMarket/index.vue",
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "确定删除此供应商及其模型？": [
     "apps/web/src/components/settings/panels/languageModel/index.vue",
@@ -3504,15 +3506,18 @@
   "放大": [
     "apps/web/src/lib/canvasShortcuts.ts",
     "apps/web/src/lib/i18n.ts",
-    "apps/web/src/pages/workspace/panels/canvas/components/canvasControls.vue"
+    "apps/web/src/pages/workspace/panels/canvas/components/canvasControls.vue",
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "缩小": [
     "apps/web/src/lib/canvasShortcuts.ts",
     "apps/web/src/lib/i18n.ts",
-    "apps/web/src/pages/workspace/panels/canvas/components/canvasControls.vue"
+    "apps/web/src/pages/workspace/panels/canvas/components/canvasControls.vue",
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "适应画布": [
-    "apps/web/src/lib/canvasShortcuts.ts"
+    "apps/web/src/lib/canvasShortcuts.ts",
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "鼠标滚轮": [
     "apps/web/src/lib/canvasShortcuts.ts"
@@ -3533,7 +3538,7 @@
   "重做": [
     "apps/web/src/lib/canvasShortcuts.ts",
     "apps/web/src/pages/workspace/panels/canvas/components/nodeMenu.vue",
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "画布节点搜索": [
     "apps/web/src/lib/canvasShortcuts.ts",
@@ -3635,7 +3640,8 @@
     "apps/web/src/lib/desktopProtocol.ts"
   ],
   "重置缩放": [
-    "apps/web/src/lib/i18n.ts"
+    "apps/web/src/lib/i18n.ts",
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "代码": [
     "apps/web/src/lib/i18n.ts"
@@ -3648,7 +3654,8 @@
     "apps/web/src/pages/workspace/panels/canvas/components/assetMenu.vue"
   ],
   "最小化": [
-    "apps/web/src/lib/i18n.ts"
+    "apps/web/src/lib/i18n.ts",
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "最大化": [
     "apps/web/src/lib/i18n.ts"
@@ -4116,7 +4123,8 @@
     "apps/web/src/pages/home/index.vue"
   ],
   "无法打开项目，请重试": [
-    "apps/web/src/pages/home/index.vue"
+    "apps/web/src/pages/home/index.vue",
+    "apps/web/src/lib/desktopMenu.ts"
   ],
   "请输入项目名称": [
     "apps/web/src/pages/home/index.vue"
@@ -5043,7 +5051,7 @@
   ],
   "剪切": [
     "apps/web/src/pages/workspace/panels/document/components/fileTree.vue",
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "工作区文件树": [
     "apps/web/src/pages/workspace/panels/document/components/fileTree.vue"
@@ -5073,7 +5081,7 @@
     "apps/web/src/lib/canvasShortcuts.ts",
     "apps/web/src/pages/workspace/panels/canvas/components/nodeMenu.vue",
     "apps/web/src/pages/workspace/panels/document/components/fileTree.vue",
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "复制画布相对路径": [
     "apps/web/src/pages/workspace/panels/document/components/fileTree.vue"
@@ -7534,7 +7542,7 @@
     "apps/desktop/src/index.ts"
   ],
   "全选": [
-    "apps/desktop/src/index.ts"
+    "apps/desktop/src/applicationMenu.ts"
   ],
   "原生启动画面创建失败：": [
     "apps/desktop/src/index.ts"
@@ -7965,5 +7973,56 @@
   ],
   "追加选择只绑定修饰键，例如 Ctrl 或 Meta。": [
     "apps/web/src/components/settings/panels/general/canvasShortcuts.vue"
+  ],
+  "无法打开项目所在位置": [
+    "apps/web/src/lib/desktopMenu.ts"
+  ],
+  "新建项目": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "关于 Cruio": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "设置…": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "隐藏 Cruio": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "隐藏其他应用": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "显示全部": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "退出 Cruio": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "打开项目…": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "最近打开的项目": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "在访达中显示项目": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "关闭窗口": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "视图": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "切换全屏": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "窗口": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "缩放": [
+    "apps/desktop/src/applicationMenu.ts"
+  ],
+  "前置全部窗口": [
+    "apps/desktop/src/applicationMenu.ts"
   ]
 }

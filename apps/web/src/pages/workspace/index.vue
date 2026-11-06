@@ -88,6 +88,7 @@ import { useWorkspaceStore } from "@/stores/workspace";
 import { registerWorkspaceControl, waitForControlValue } from "@/lib/mcpControl";
 import { useProviderBalances } from "@/lib/providerBilling";
 import { accountWorkFinished, registerAccountWorkspace } from "@/lib/accountWorkspace";
+import { registerCanvasMenu } from "@/lib/desktopMenu";
 import canvasPanel from "./panels/canvas/canvasHost.vue";
 import type { DocumentNodeOptions } from "./panels/canvas/canvasFiles";
 import workspaceMenu from "./components/workspaceMenu.vue";
@@ -118,6 +119,14 @@ const agentVisible = ref(true);
 const agentWidth = ref(0);
 const settingsVisible = ref(false);
 const canvasPanelRef = ref<InstanceType<typeof canvasPanel>>();
+registerCanvasMenu({
+  state: () => ({
+    ready: activePanel.value === "canvas" && !settingsVisible.value && !!canvasPanelRef.value?.canvasReady && !canvasPanelRef.value.saveBusy,
+    canUndo: !!canvasPanelRef.value?.canUndo,
+    canRedo: !!canvasPanelRef.value?.canRedo,
+  }),
+  run: action => canvasPanelRef.value?.runMenuCommand(action),
+});
 watch(() => canvasPanelRef.value?.canvasListReady, ready => {
   workspaceStore.projectLoading = !ready;
 }, { immediate: true });

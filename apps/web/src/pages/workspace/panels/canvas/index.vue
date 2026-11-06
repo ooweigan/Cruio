@@ -127,6 +127,7 @@ import axios from "axios";
 import { debounce } from "lodash-es";
 import { ElMessage } from "element-plus";
 import { isMobile, isDesktop } from "@/lib/platform";
+import type { DesktopCanvasCommand } from "@toonflow/server/desktop";
 import { storeToRefs } from "pinia";
 import { IconUnlink } from "@tabler/icons-vue";
 import * as vueRuntime from "vue";
@@ -288,7 +289,19 @@ function getCanvasContext() {
 }
 const canvasReady = computed(() => !!canvasId.value && !nodeListLoading.value && nodeLoads.size === 0);
 provide("canvas", getCanvasContext);
-defineExpose({ canvasId, canvasReady, getCanvasContext, addNodeAtPointer, readDocumentNode, saveDocumentNode, mountDocumentNode, observeDocumentNode, prepareCanvasDelete, flushSave: flushCanvasSave, cancelSave: cancelCanvasSave,
+async function runMenuCommand(action: DesktopCanvasCommand) {
+  if (!props.active || props.settingsVisible || !canvasReady.value || !project.value?.directory) return;
+  if (action === "undo" || action === "redo") {
+    await changeHistory(action);
+  } else if (action === "selectAll") {
+    flow.addSelectedElements([
+      ...flow.getNodes.value.filter(node => node.selectable !== false),
+      ...flow.getEdges.value.filter(edge => edge.selectable !== false),
+    ]);
+  } else if (action === "resetZoom") await flow.zoomTo(1);
+  else await flow[action]();
+}
+defineExpose({ canvasId, canvasReady, canUndo, canRedo, runMenuCommand, getCanvasContext, addNodeAtPointer, readDocumentNode, saveDocumentNode, mountDocumentNode, observeDocumentNode, prepareCanvasDelete, flushSave: flushCanvasSave, cancelSave: cancelCanvasSave,
   openNodeSearch: () => nodeSearchRef.value?.open(),
   getCanvases: (signal?: AbortSignal) => {
     if (!canvasMenuRef.value) throw new Error("画布菜单尚未就绪");

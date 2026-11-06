@@ -9,7 +9,8 @@ import { promisify } from "node:util";
 import { dlopen, ptr } from "bun:ffi";
 import type { DesktopRuntime, PluginInstallRequest } from "@toonflow/server/desktop";
 import { showNativeSplash } from "@toonflow/startup";
-import Electrobun, { ApplicationMenu, BrowserWindow, PATHS, Screen, Utils, Updater } from "electrobun/main";
+import Electrobun, { BrowserWindow, PATHS, Screen, Utils, Updater } from "electrobun/main";
+import createApplicationMenu from "./applicationMenu";
 import { parseInstallUrl } from "./protocol";
 import saveFile, { selectSaveFile } from "./saveFile";
 import { confirmWindowsUpdateStartup } from "./update/windowsUpdater";
@@ -74,6 +75,7 @@ async function start() {
   let splash: Awaited<ReturnType<typeof showNativeSplash>> | undefined;
   let desktopConnection: Awaited<ReturnType<typeof import("./connection").default>> | undefined;
   let isClosing = false;
+  let applicationMenu: ReturnType<typeof createApplicationMenu> | undefined;
 
   try {
     // Windows 的 data 与 app 同级；macOS 的 data 与 .app 同级，避免随程序更新被替换。
@@ -86,29 +88,6 @@ async function start() {
     });
     setLocaleFallback(() => normalizeLocale(startupSettings?.settings?.ui?.language)
       ?? detectLocale([Intl.DateTimeFormat().resolvedOptions().locale]));
-    if (process.platform === "darwin") {
-      // ACT: WKWebView 的 Command 编辑快捷键由原生菜单角色交给当前响应者处理。
-      ApplicationMenu.setApplicationMenu([
-        { label: "Cruio", submenu: [
-          { role: "about" },
-          { type: "separator" },
-          { role: "hide" },
-          { role: "hideOthers" },
-          { role: "showAll" },
-          { type: "separator" },
-          { role: "quit" },
-        ] },
-        { label: t`编辑`, submenu: [
-          { role: "undo", label: t`撤销` },
-          { role: "redo", label: t`重做` },
-          { type: "separator" },
-          { role: "cut", label: t`剪切` },
-          { role: "copy", label: t`复制` },
-          { role: "paste", label: t`粘贴` },
-          { role: "selectAll", label: t`全选` },
-        ] },
-      ]);
-    }
     try {
       if (startupSettings?.settings?.ui?.startupAnimation !== false) {
         splash = await showNativeSplash(resolve(PATHS.VIEWS_FOLDER, "../startup"), () => {
@@ -145,6 +124,7 @@ async function start() {
     const { default: createDesktopConnection } = await import("./connection");
     const connection = desktopConnection = await createDesktopConnection(app, dataDirectory, resolve(PATHS.VIEWS_FOLDER, "../mcp/stdio.js"), (port, remote) => {
       deliverInstall = undefined;
+      applicationMenu?.reset();
       saveRuntime(port);
       mainWindow.webview.setNavigationRules(getNavigationRules(port));
       mainWindow.webview.loadURL(`http://127.0.0.1:${port}/?desktop=1${remote ? "&remote=1" : ""}`);
@@ -194,6 +174,21 @@ async function start() {
         y: workArea.y + Math.round((workArea.height - height) / 2),
       },
     });
+    if (process.platform === "darwin") {
+      applicationMenu = createApplicationMenu(mainWindow);
+      mainWindow.on("will-close", (event: unknown) => {
+        if (isClosing) return;
+        // ACT: 单窗口关闭时保留编辑现场及自动保存，Dock 重开复用同一窗口。
+        (event as { response: { allow: boolean } }).response = { allow: false };
+        mainWindow.hide();
+      });
+      Electrobun.events.on("reopen", () => {
+        if (isClosing) return;
+        mainWindow.unminimize();
+        mainWindow.show();
+        mainWindow.activate();
+      });
+    }
     let isControlHeld = () => false;
     let navigationTimer: ReturnType<typeof setTimeout> | undefined;
     function openLink(detail: unknown) {
@@ -223,7 +218,10 @@ async function start() {
     Electrobun.events.on(`new-window-open-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => openLink(event.data.detail));
     Electrobun.events.on(`host-message-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => {
       const detail = event.data.detail;
-      if (detail && typeof detail === "object" && "type" in detail && detail.type === "openExternal") openLink(detail);
+      if (!isClosing && detail && typeof detail === "object" && "type" in detail) {
+        if (detail.type === "openExternal") openLink(detail);
+        else if (detail.type === "menuState" && "state" in detail) applicationMenu?.update(detail.state);
+      }
     });
     // 页面重载时监听器随旧页面销毁，安装请求等新页面 ready 后再投递。
     Electrobun.events.on(`will-navigate-${mainWindow.webview.id}`, (event: { data: { detail: unknown } }) => {
@@ -237,6 +235,7 @@ async function start() {
         return;
       }
       deliverInstall = undefined;
+      applicationMenu?.reset();
     });
     let isShowing = false;
     app.locals.desktop = {
@@ -343,6 +342,7 @@ async function start() {
       event.response = { allow: false };
       if (shutdown) return;
       isClosing = true;
+      applicationMenu?.reset();
       deliverInstall = undefined;
       pendingInstalls.length = 0;
       splash?.close();
@@ -358,6 +358,7 @@ async function start() {
       void connection.close().catch(error => console.error("设备连接关闭失败：", error));
       void closeBrowsers().catch(error => console.error("浏览器关闭失败：", error));
       isClosing = true;
+      applicationMenu?.reset();
       deliverInstall = undefined;
       pendingInstalls.length = 0;
       splash?.close();

@@ -131,6 +131,7 @@ import { useWorkspaceStore, type Project } from "@/stores/workspace";
 import { hasDesktopUpdate } from "@/stores/desktopUpdate";
 import { creationLocation, loadCreationLocation } from "@/stores/creationLocation";
 import { waitForControlValue } from "@/lib/mcpControl";
+import { registerProjectMenu } from "@/lib/desktopMenu";
 import settings from "@/components/settings/index.vue";
 import assetLibraryDialog from "./assetLibraryDialog.vue";
 import bg from "./bg.vue";
@@ -163,6 +164,17 @@ const draggingAttachments = ref(false);
 let attachmentDragDepth = 0;
 const workspaceStore = useWorkspaceStore();
 const { projectList } = storeToRefs(workspaceStore);
+registerProjectMenu({
+  busy: () => creating.value || opening.value || !!relocationPicker.value?.selecting,
+  async run(action, directory) {
+    if (action === "newProject") await createProject(false);
+    else if (action === "openProject") await openExistingProject();
+    else {
+      const project = projectList.value.find(project => project.directory === directory);
+      if (project) await openProject(project);
+    }
+  },
+});
 const placeholderPhrases = [
   "描述你想创作的内容，让灵感从这里开始…",
   "把一个故事灵感，变成一段精彩的短片…",

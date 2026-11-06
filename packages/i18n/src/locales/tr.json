@@ -2740,5 +2740,21 @@
   "从 JSON 导入": "JSON içe aktar",
   "导入 DXT 包": "DXT paketi içe aktar",
   "取消语音输入": "Sesli girişi iptal et",
-  "长按输入框语音输入，也可点击开始": "Sesli giriş için giriş alanına basılı tutun veya başlamak için tıklayın"
+  "长按输入框语音输入，也可点击开始": "Sesli giriş için giriş alanına basılı tutun veya başlamak için tıklayın",
+  "无法打开项目所在位置": "Projenin konumu açılamadı",
+  "关于 Cruio": "Cruio Hakkında",
+  "设置…": "Ayarlar…",
+  "隐藏 Cruio": "Cruio Uygulamasını Gizle",
+  "隐藏其他应用": "Diğer Uygulamaları Gizle",
+  "显示全部": "Tümünü Göster",
+  "退出 Cruio": "Cruio Uygulamasından Çık",
+  "打开项目…": "Proje Aç…",
+  "最近打开的项目": "Son Açılan Projeler",
+  "在访达中显示项目": "Projeyi Finder’da Göster",
+  "关闭窗口": "Pencereyi Kapat",
+  "视图": "Görüntü",
+  "切换全屏": "Tam Ekranı Aç/Kapat",
+  "窗口": "Pencere",
+  "缩放": "Büyüt/Küçült",
+  "前置全部窗口": "Tüm Pencereleri Öne Getir"
 }

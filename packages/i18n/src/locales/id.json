@@ -2740,5 +2740,21 @@
   "从 JSON 导入": "Impor dari JSON",
   "导入 DXT 包": "Impor paket DXT",
   "取消语音输入": "Batalkan input suara",
-  "长按输入框语音输入，也可点击开始": "Tekan lama kolom input untuk input suara, atau klik untuk memulai"
+  "长按输入框语音输入，也可点击开始": "Tekan lama kolom input untuk input suara, atau klik untuk memulai",
+  "无法打开项目所在位置": "Tidak dapat membuka lokasi proyek",
+  "关于 Cruio": "Tentang Cruio",
+  "设置…": "Pengaturan…",
+  "隐藏 Cruio": "Sembunyikan Cruio",
+  "隐藏其他应用": "Sembunyikan Aplikasi Lain",
+  "显示全部": "Tampilkan Semua",
+  "退出 Cruio": "Keluar dari Cruio",
+  "打开项目…": "Buka Proyek…",
+  "最近打开的项目": "Proyek yang Baru Dibuka",
+  "在访达中显示项目": "Tampilkan Proyek di Finder",
+  "关闭窗口": "Tutup Jendela",
+  "视图": "Tampilan",
+  "切换全屏": "Alihkan Layar Penuh",
+  "窗口": "Jendela",
+  "缩放": "Perbesar/Perkecil Jendela",
+  "前置全部窗口": "Bawa Semua Jendela ke Depan"
 }

@@ -2740,5 +2740,21 @@
   "从 JSON 导入": "Import from JSON",
   "导入 DXT 包": "Import DXT package",
   "取消语音输入": "Cancel voice input",
-  "长按输入框语音输入，也可点击开始": "Hold the input box for voice input, or click to start"
+  "长按输入框语音输入，也可点击开始": "Hold the input box for voice input, or click to start",
+  "无法打开项目所在位置": "Unable to open the project location",
+  "关于 Cruio": "About Cruio",
+  "设置…": "Settings…",
+  "隐藏 Cruio": "Hide Cruio",
+  "隐藏其他应用": "Hide Other Apps",
+  "显示全部": "Show All",
+  "退出 Cruio": "Quit Cruio",
+  "打开项目…": "Open Project…",
+  "最近打开的项目": "Recent Projects",
+  "在访达中显示项目": "Show Project in Finder",
+  "关闭窗口": "Close Window",
+  "视图": "View",
+  "切换全屏": "Toggle Full Screen",
+  "窗口": "Window",
+  "缩放": "Zoom",
+  "前置全部窗口": "Bring All to Front"
 }

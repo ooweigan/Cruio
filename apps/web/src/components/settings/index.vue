@@ -38,6 +38,7 @@
 <script setup lang="ts">
 import { defineAsyncComponent, shallowRef } from "vue";
 import { hasDesktopUpdate } from "@/stores/desktopUpdate";
+import { registerSettingsMenu } from "@/lib/desktopMenu";
 import {
   IconPalette,
   IconSettings,
@@ -61,6 +62,12 @@ const settingsPanels = [
 ];
 const activePanel = shallowRef(settingsPanels[0]!);
 const visible = defineModel<boolean>({ default: false });
+registerSettingsMenu({
+  open(panel) {
+    if (panel === "about") activePanel.value = settingsPanels.find(item => item.id === "about")!;
+    visible.value = true;
+  },
+});
 </script>
 
 <style lang="scss" scoped>

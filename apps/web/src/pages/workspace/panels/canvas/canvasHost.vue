@@ -404,6 +404,9 @@ const mentionSource: MentionCanvasSource = {
 };
 
 defineExpose({ canvasId, canvasReady, canvasListReady, getCanvasContext, readDocumentNode, readDocumentNodes, focusDocumentNode, saveDocumentNode, mountDocumentNode, observeDocumentNode, resolveDocumentNodeFile, performFileAction, flushSave, cancelSave,
+  get canUndo() { return activeInstance.value?.canUndo ?? false; },
+  get canRedo() { return activeInstance.value?.canRedo ?? false; },
+  runMenuCommand: (action: Parameters<InstanceType<typeof canvasPanel>["runMenuCommand"]>[0]) => activeInstance.value?.runMenuCommand(action),
   addNodeAtPointer: () => activeInstance.value?.addNodeAtPointer(),
   openNodeSearch: () => activeInstance.value?.openNodeSearch(),
   mentionSource,

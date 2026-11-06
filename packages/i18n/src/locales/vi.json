@@ -2740,5 +2740,21 @@
   "从 JSON 导入": "Nhập từ JSON",
   "导入 DXT 包": "Nhập gói DXT",
   "取消语音输入": "Hủy nhập giọng nói",
-  "长按输入框语音输入，也可点击开始": "Nhấn giữ ô nhập để nhập bằng giọng nói hoặc nhấp để bắt đầu"
+  "长按输入框语音输入，也可点击开始": "Nhấn giữ ô nhập để nhập bằng giọng nói hoặc nhấp để bắt đầu",
+  "无法打开项目所在位置": "Không thể mở vị trí dự án",
+  "关于 Cruio": "Giới thiệu về Cruio",
+  "设置…": "Cài đặt…",
+  "隐藏 Cruio": "Ẩn Cruio",
+  "隐藏其他应用": "Ẩn các ứng dụng khác",
+  "显示全部": "Hiển thị tất cả",
+  "退出 Cruio": "Thoát Cruio",
+  "打开项目…": "Mở dự án…",
+  "最近打开的项目": "Dự án đã mở gần đây",
+  "在访达中显示项目": "Hiển thị dự án trong Finder",
+  "关闭窗口": "Đóng cửa sổ",
+  "视图": "Xem",
+  "切换全屏": "Bật/tắt toàn màn hình",
+  "窗口": "Cửa sổ",
+  "缩放": "Thu phóng cửa sổ",
+  "前置全部窗口": "Đưa tất cả cửa sổ lên trước"
 }

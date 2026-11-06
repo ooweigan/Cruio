@@ -2740,5 +2740,21 @@
   "从 JSON 导入": "Mag-import mula sa JSON",
   "导入 DXT 包": "Mag-import ng DXT package",
   "取消语音输入": "Kanselahin ang voice input",
-  "长按输入框语音输入，也可点击开始": "Pindutin nang matagal ang input field para magsalita, o i-click upang magsimula"
+  "长按输入框语音输入，也可点击开始": "Pindutin nang matagal ang input field para magsalita, o i-click upang magsimula",
+  "无法打开项目所在位置": "Hindi mabuksan ang lokasyon ng proyekto",
+  "关于 Cruio": "Tungkol sa Cruio",
+  "设置…": "Mga Setting…",
+  "隐藏 Cruio": "Itago ang Cruio",
+  "隐藏其他应用": "Itago ang Iba Pang App",
+  "显示全部": "Ipakita Lahat",
+  "退出 Cruio": "Lumabas sa Cruio",
+  "打开项目…": "Magbukas ng Proyekto…",
+  "最近打开的项目": "Mga Kamakailang Binuksang Proyekto",
+  "在访达中显示项目": "Ipakita ang Proyekto sa Finder",
+  "关闭窗口": "Isara ang Window",
+  "视图": "Tingnan",
+  "切换全屏": "I-toggle ang Buong Screen",
+  "窗口": "Window",
+  "缩放": "Palakihin/Paliitin ang Window",
+  "前置全部窗口": "Dalhin ang Lahat ng Window sa Harapan"
 }

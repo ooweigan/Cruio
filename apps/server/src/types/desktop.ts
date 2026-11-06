@@ -1,3 +1,18 @@
+export type DesktopMenuCommand = "about" | "settings" | "newProject" | "openProject" | "recentProject" | "revealProject" | "undo" | "redo" | "selectAll" | "zoomIn" | "zoomOut" | "fitView" | "resetZoom";
+export type DesktopCanvasCommand = Extract<DesktopMenuCommand, "undo" | "redo" | "selectAll" | "zoomIn" | "zoomOut" | "fitView" | "resetZoom">;
+export type DesktopMenuState = {
+  locale: string;
+  contextId: string | null;
+  available: boolean;
+  projectOpen: boolean;
+  canvasReady: boolean;
+  canvasFocused: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  recentProjects: { name: string; directory: string }[];
+};
+export type DesktopMenuRequest = { action: DesktopMenuCommand; contextId: string | null; directory?: string };
+
 export type PluginInstallType = "node" | "tool" | "skill" | "provider" | "agent" | "ext";
 export type PluginInstallRequest = { type: PluginInstallType; url: string; fileName: string };
 
