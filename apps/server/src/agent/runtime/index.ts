@@ -415,9 +415,9 @@ export async function run(
           )}`.trim()
         : mentionPrompt(prompt, mentions);
       // SDK 仅以空格分隔技能名；兼容换行输入与追加的附件说明。
+      signal?.throwIfAborted();
       await session.prompt(content.replace(/^(\/skill:\S+)\s+/, "$1 "));
       if (compactionError) throw new Error(compactionError);
-      signal?.throwIfAborted();
       if (modelError) throw Object.assign(new Error(modelError), limited ? { code: "AGENT_LENGTH" } : {});
     } catch (error) {
       failure = error;
