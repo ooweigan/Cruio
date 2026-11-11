@@ -403,7 +403,7 @@ export async function run(
         history.appendModelChange(providerId, modelId);
         history.appendThinkingLevelChange(effectiveThinkingLevel);
         history.appendCustomEntry("toonflowReasoning", { thinkingLevel: thinkingLevel ?? null });
-        session.agent.state.messages = history.buildSessionContext().messages;
+        session.refreshContext();
         userMessageId = history.getBranch().findLast((entry) => entry.type === "message" && entry.message.role === "user")?.id;
       }
       send({ type: "session", file: basename(history.getSessionFile()!) });
@@ -417,6 +417,7 @@ export async function run(
       // SDK 仅以空格分隔技能名；兼容换行输入与追加的附件说明。
       await session.prompt(content.replace(/^(\/skill:\S+)\s+/, "$1 "));
       if (compactionError) throw new Error(compactionError);
+      signal?.throwIfAborted();
       if (modelError) throw Object.assign(new Error(modelError), limited ? { code: "AGENT_LENGTH" } : {});
     } catch (error) {
       failure = error;
@@ -435,7 +436,7 @@ export async function run(
           history.branch(resumeLeafId);
           // 分支指针本身不落盘，追加当前模型配置以保存恢复位置。
           history.appendModelChange(providerId, modelId);
-          session.agent.state.messages = history.buildSessionContext().messages;
+          session.refreshContext();
         }
         // ACT: 只记录有首个内容增量的生成耗时，旧历史和未计时输出不参与速度统计。
         if (timing.decodeMs > 0) history.appendCustomEntry("toonflowTiming", timing);

@@ -1,6 +1,8 @@
 name: Debug build
 
 on:
+  push:
+    branches: [codex/windowsPi152]
   workflow_dispatch:
     inputs:
       target:
@@ -103,7 +105,7 @@ jobs:
             { target: "macX64", os: "macos-15-intel", platform: "darwin", arch: "x64", releaseFolder: "build/desktop/releases/macX64" },
             { target: "androidArm64", os: "windows-2025", platform: "win32", arch: "x64", releaseFolder: "build/mobile/releases" },
           ];
-          const selected = process.env.buildTarget || "all";
+          const selected = process.env.buildTarget || "windowsX64";
           const include = targets.filter(item => selected === "all" || item.target === selected);
           if (!include.length) throw new Error(`不支持的构建平台：${selected}`);
           const refVersion = /^v\d+\.\d+\.\d+$/.test(process.env.buildRef ?? "") ? process.env.buildRef : "";
@@ -115,7 +117,7 @@ jobs:
   build:
     name: 构建 ${{ matrix.target }}
     needs: prepare
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: github.ref == 'refs/heads/codex/windowsPi152' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:

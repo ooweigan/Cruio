@@ -9,7 +9,7 @@ import { isMemoryEnabled, readDocument } from "@/utils/personalization";
 import { getSettings } from "@/utils/account/settings";
 import { getRuntimePlatform } from "@/lib/platform";
 
-export async function createAgentResources(cwd: string, tools: ToolDefinition[], settings = SettingsManager.inMemory(), instructions = "") {
+export async function createAgentResources(cwd: string, tools: ToolDefinition[], settings = SettingsManager.inMemory({ cacheWarming: "off" }), instructions = "") {
   const savedPrompt = getSettings().agentSystemPrompt;
   const systemPrompt = typeof savedPrompt === "string" ? savedPrompt : undefined;
   const agentDir = join(cwd, ".agent");
@@ -27,7 +27,7 @@ export async function createAgentResources(cwd: string, tools: ToolDefinition[],
     cwd,
     agentDir,
     settingsManager: settings,
-    noExtensions: true,
+    noExtensions: true, disabledBuiltinExtensions: ["mcp"],
     noSkills: true,
     noPromptTemplates: true,
     noThemes: true,

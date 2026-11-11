@@ -416,10 +416,10 @@ export function useNodeAi() {
     }));
     let turns = 0;
     const messages = await runAgentLoop([{ role: "user", content: prompt, timestamp: Date.now() }], {
-      systemPrompt: systemPrompt ?? "", messages: [], tools,
+      messages: systemPrompt ? [{ role: "system", content: systemPrompt, timestamp: Date.now() }] : [], tools,
     }, {
       model, convertToLlm: messages => messages as Message[], toolExecution: "sequential",
-      shouldStopAfterTurn: ({ message }) => ++turns >= 40 || message.stopReason === "length",
+      finishTurn: ({ message }) => message.stopReason !== "aborted" && message.stopReason !== "error" && (++turns >= 40 || message.stopReason === "length") ? { action: "end" } : undefined,
     }, event => {
       callSignal.throwIfAborted();
       if (event.type === "tool_execution_start") onEvent?.({ type: "toolStart", id: event.toolCallId, name: event.toolName, args: event.args });
@@ -427,7 +427,10 @@ export function useNodeAi() {
         const text = (event.result as AgentToolResult<unknown>).content.filter(part => part.type === "text").map(part => part.text).join("\n");
         onEvent({ type: "toolEnd", id: event.toolCallId, name: event.toolName, result: event.isError ? text : JSON.parse(text), isError: event.isError });
       }
-    }, callSignal, (_model, context) => requestModel(input, context, model, callSignal));
+    }, callSignal, (_model, context) => requestModel(input, {
+      systemPrompt, messages: context.messages.filter(message => message.role !== "system"),
+      tools: definitions.map(({ name, description, parameters }) => ({ name, description, parameters })),
+    }, model, callSignal));
     callSignal.throwIfAborted();
     const message = messages.findLast((message): message is AssistantMessage => message.role === "assistant");
     if (!message) throw new Error("AI 未返回结果");

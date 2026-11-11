@@ -79,7 +79,7 @@ const input = ref<InstanceType<typeof messageInput>>();
 const voiceActive = ref(false);
 const locked = computed(() => props.disabled || busy.value || deletingId.value !== undefined || restoringAttachment.value || voiceActive.value);
 const editingId = ref<string>();
-let controller: AbortController | undefined;
+let stopCurrent: (() => void) | undefined;
 const pendingMessage = props.initialSession?.parentFile ? undefined : workspaceStore.pendingAgentMessage;
 const selectedModel = ref(pendingMessage?.model ?? (props.initialSession?.providerId && props.initialSession.modelId
   ? JSON.stringify([props.initialSession.providerId, props.initialSession.modelId]) : ""));
@@ -155,7 +155,7 @@ async function deleteMessage(item: AgentMessage) {
 }
 
 function stopMessage() {
-  controller?.abort();
+  stopCurrent?.();
 }
 
 async function uploadAttachments(attachments: AgentAttachment[], directory: string, signal: AbortSignal) {
@@ -226,7 +226,24 @@ async function sendMessage(source?: AgentMessage) {
 
   const requestController = new AbortController();
   const canvasContext = createCanvasContext?.();
-  controller = requestController;
+  let submitted = false;
+  let stopRequested = false;
+  let runId: string | null = null;
+  let stopping: Promise<void> | undefined;
+  const stop = () => {
+    stopRequested = true;
+    if (!submitted) { requestController.abort(); return; }
+    // 首个响应头确认服务端已登记本轮；提前点击停止时等它到达，避免取消请求抢在登记前。
+    if (!runId || stopping) return;
+    stopping = axios.post("/api/agent/stop", { directory, runId }, {
+      headers: { "x-toonflow-workspace": "1" },
+    }).then(() => { requestController.abort(); }, error => {
+      stopRequested = false;
+      stopping = undefined;
+      ElMessage.error(error.response?.data?.message || "停止失败，请重试");
+    });
+  };
+  stopCurrent = stop;
   busy.value = true;
   compacting.value = false;
   const reply = reactive<AgentMessage>({ id: crypto.randomUUID(), role: "assistant", content: "", parts: [], streaming: true });
@@ -246,12 +263,16 @@ async function sendMessage(source?: AgentMessage) {
     if (!source) await instance.clearDraft();
     requestController.signal.throwIfAborted();
     await uploadAttachments(attachments, directory, requestController.signal);
+    requestController.signal.throwIfAborted();
+    submitted = true;
     const response = await fetch("/api/agent", {
       method: "POST",
       headers: { "Accept-Language": locale.value, "Content-Type": "application/json", "x-toonflow-workspace": "1" },
       body: JSON.stringify({ prompt, mentions, attachments: attachments.map(({ name, path, mimeType }) => ({ name, path, mimeType })), directory, providerId: model.providerId, modelId: model.modelId, thinkingLevel: reasoningEffort.value || undefined, sessionFile: props.sessionFile, resendFrom, canvas: canvasContext ? { id: canvasContext.id, tools: canvasContext.tools } : undefined }),
       signal: requestController.signal,
     });
+    runId = response.headers.get("x-cruio-run");
+    if (stopRequested) stop();
     for await (const event of readAgentEvents(response, requestController.signal)) {
       // 子任务复用发起委派时的画布与取消通道，界面切换不改变工具执行目标。
       let toolEvent: AgentEvent = event;
@@ -306,7 +327,7 @@ async function sendMessage(source?: AgentMessage) {
     emit("sent", mentionPlainText(prompt, mentions) || attachments[0]?.name || "新对话");
   } catch (error) {
     const responseMessage = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
-    const message = requestController.signal.aborted ? "已停止生成" : responseMessage || (error instanceof Error ? error.message : "发送失败，请重试");
+    const message = stopRequested || requestController.signal.aborted ? "已停止生成" : responseMessage || (error instanceof Error ? error.message : "发送失败，请重试");
     if ((source && !accepted) || !ownsStream) { userMessage.error = message; ElMessage.error(message); }
     else reply.error = message;
     if (ownsStream && props.initialSession?.parentFile && props.sessionFile) {
@@ -322,9 +343,10 @@ async function sendMessage(source?: AgentMessage) {
       }).catch(() => {});
     }
     if (ownsStream && !forwarded) stream.finish();
+    await stopping;
     compacting.value = false;
     busy.value = false;
-    controller = undefined;
+    stopCurrent = undefined;
   }
 }
 
@@ -337,7 +359,7 @@ watch(() => !props.initialSession?.parentFile && !!workspaceStore.pendingAgentMe
   if (input.value === instance && props.active) void sendMessage();
 }, { flush: "post" });
 
-onBeforeUnmount(() => controller?.abort());
+onBeforeUnmount(stopMessage);
 </script>
 
 <style lang="scss">

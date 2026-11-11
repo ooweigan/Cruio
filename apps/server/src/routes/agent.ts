@@ -33,7 +33,6 @@ export default Router().post("/", validateFields(inputSchema.shape), async (req,
   const cwd = await u.workspace.resolveWorkspace(req, directory);
   await getAgentModelConfiguration(options.providerId, options.modelId, options.thinkingLevel);
   res.set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" });
-  res.flushHeaders();
   const send = (event: AgentEvent) => {
     if (event.type === "error") event = { ...event, message: translateMessage(event.message) };
     if (event.type === "session") options.sessionFile = event.file;
@@ -50,12 +49,17 @@ export default Router().post("/", validateFields(inputSchema.shape), async (req,
   res.once("close", close);
   req.once("aborted", close);
   req.socket.once("close", close);
+  const run = u.agent.registerRun(cwd, close);
   try {
+    res.set("x-cruio-run", run.id);
+    res.flushHeaders();
+    res.write("\n");
     await u.agent.run({ ...options, cwd, canvas: bridge?.context, question: questions.context, signal: controller.signal, onCancel: close }, send);
     send({ type: "done" });
   } catch (error) {
     send({ type: "error", message: error instanceof Error ? translateError(error) : translateMessage("Agent 运行失败") });
   } finally {
+    run.finish();
     clearInterval(heartbeat);
     res.off("close", close);
     req.off("aborted", close);

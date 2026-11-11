@@ -66,7 +66,7 @@ export async function runSubAgent(options: SubAgentModel & {
       },
     }));
     const resources = await createAgentResources(cwd, activeTools, SettingsManager.inMemory({
-      compaction: { enabled: false },
+      cacheWarming: "off", compaction: { enabled: false },
       retry: { enabled: false, provider: { maxRetries: 0 } },
     }), instructions);
     signal.throwIfAborted();
@@ -78,7 +78,11 @@ export async function runSubAgent(options: SubAgentModel & {
     }));
     configureAgentRequests(session);
     signal.throwIfAborted();
-    session.agent.shouldStopAfterTurn = () => Boolean(inputRequired?.());
+    const finishTurn = session.agent.finishTurn;
+    session.agent.finishTurn = async (turn, signal) => {
+      const decision = await finishTurn?.(turn, signal);
+      return turn.message.stopReason !== "error" && turn.message.stopReason !== "aborted" && inputRequired?.() ? { action: "end" } : decision || undefined;
+    };
     session.subscribe(event => {
       if (signal.aborted) return;
       if (event.type === "message_start" && event.message.role === "assistant") onProgress?.("正在处理");

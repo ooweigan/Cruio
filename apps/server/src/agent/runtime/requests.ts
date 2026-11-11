@@ -117,7 +117,7 @@ export function configureAgentRequests(session: AgentSession, limits?: { maxRequ
           const imageQueue = new Map<string, AgentImageReference[]>();
           const messages: Message[] = [];
           for (const [messageIndex, message] of context.messages.entries()) {
-            if (message.role === "assistant" || typeof message.content === "string") { messages.push(message); continue; }
+            if (message.role === "system" || message.role === "assistant" || typeof message.content === "string") { messages.push(message); continue; }
             const content: (TextContent | ImageContent)[] = [];
             for (const [index, part] of message.content.entries()) {
               let reference = getAgentImageReference(part);

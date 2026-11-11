@@ -134,8 +134,8 @@ import * as vueRuntime from "vue";
 import * as vueFlowRuntime from "@vue-flow/core";
 import * as elementPlusRuntime from "element-plus";
 import * as threeRuntime from "three";
-import { runAgentLoop } from "@earendil-works/pi-agent-core";
-import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
+import { runAgentLoop, type AgentTurnContext } from "@earendil-works/pi-agent-core";
+import { createAssistantMessageEventStream, getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai";
 import "element-plus/dist/index.css";
 import {
   VueFlow,
@@ -1079,11 +1079,28 @@ onBeforeUnmount(() => {
   loadRequest++;
 });
 
+// 已安装的 0.85 节点从宿主取得循环，并通过旧的提示词、工具列表和停轮接口调用模型。
+const runNodeAgentLoop: typeof runAgentLoop = (prompts, context, config, emit, signal, stream) => {
+  if (!("systemPrompt" in context) || typeof context.systemPrompt !== "string") {
+    return runAgentLoop(prompts, context, config, emit, signal, stream);
+  }
+  const stop = (config as typeof config & { shouldStopAfterTurn?: (turn: AgentTurnContext, signal?: AbortSignal) => boolean | Promise<boolean> }).shouldStopAfterTurn;
+  return runAgentLoop(prompts, { ...context, messages: [
+    { role: "system", content: context.systemPrompt, timestamp: Date.now() }, ...context.messages,
+  ] }, { ...config, finishTurn: async (turn, signal) => {
+    if (turn.message.stopReason !== "error" && turn.message.stopReason !== "aborted" && await stop?.(turn, signal)) return { action: "end" };
+  } }, emit, signal, (model, transcript, options) => {
+    const legacy = { ...transcript, systemPrompt: getCurrentSystemPrompt(transcript.messages), tools: getCurrentTools(transcript.messages),
+      messages: transcript.messages.filter(message => message.role !== "system") };
+    return stream(model, legacy, options);
+  });
+};
+
 const nodeWindow = window as typeof window & {
   toonflowNodeHost?: { vue: typeof vueRuntime; vueFlow: typeof vueFlowRuntime; elementPlus: typeof elementPlusRuntime; three: typeof threeRuntime; ai: { runAgentLoop: typeof runAgentLoop; createAssistantMessageEventStream: typeof createAssistantMessageEventStream } };
   toonflowNodes?: NodeTypesObject;
 };
-nodeWindow.toonflowNodeHost = { vue: vueRuntime, vueFlow: vueFlowRuntime, elementPlus: elementPlusRuntime, three: threeRuntime, ai: { runAgentLoop, createAssistantMessageEventStream } };
+nodeWindow.toonflowNodeHost = { vue: vueRuntime, vueFlow: vueFlowRuntime, elementPlus: elementPlusRuntime, three: threeRuntime, ai: { runAgentLoop: runNodeAgentLoop, createAssistantMessageEventStream } };
 provide("nodeConfig", (nodeType: string) => nodeConfigs.value[nodeType] ?? {});
 provide("workspaceFiles", () => {
   const directory = project.value?.directory;
