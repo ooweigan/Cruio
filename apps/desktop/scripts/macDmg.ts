@@ -74,18 +74,20 @@ async function createDmg(args: string[]) {
   await run(["/usr/bin/osascript", "-l", "JavaScript", "-", join(background, "install.png")], `
 ObjC.import("AppKit");
 function run(args) {
-  const image = $.NSImage.alloc.initWithSize($.NSMakeSize(640, 400));
-  image.lockFocus;
+  // 固定像素尺寸，避免 lockFocus 随构建机的 Retina 倍率放大背景。
+  const bitmap = $.NSBitmapImageRep.alloc.initWithBitmapDataPlanesPixelsWidePixelsHighBitsPerSampleSamplesPerPixelHasAlphaIsPlanarColorSpaceNameBytesPerRowBitsPerPixel(
+    null, 640, 400, 8, 4, true, false, $.NSCalibratedRGBColorSpace, 0, 0
+  );
+  $.NSGraphicsContext.saveGraphicsState;
+  $.NSGraphicsContext.setCurrentContext($.NSGraphicsContext.graphicsContextWithBitmapImageRep(bitmap));
   $.NSColor.colorWithCalibratedRedGreenBlueAlpha(0.97, 0.98, 1, 1).set;
   $.NSRectFill($.NSMakeRect(0, 0, 640, 400));
   function text(value, y, size, color) {
-    const style = $.NSMutableParagraphStyle.alloc.init;
-    style.alignment = $.NSTextAlignmentCenter;
-    $(value).drawInRectWithAttributes($.NSMakeRect(20, y, 600, size + 10), $({
-      NSFont: $.NSFont.systemFontOfSize(size),
-      NSColor: color,
-      NSParagraphStyle: style
-    }));
+    const attributes = $({ NSFont: $.NSFont.systemFontOfSize(size), NSColor: color });
+    const label = $(value);
+    // 按文字宽度居中，避开 JXA 对齐枚举与当前 AppKit 值不一致的问题。
+    const x = (640 - label.sizeWithAttributes(attributes).width) / 2;
+    label.drawAtPointWithAttributes($.NSMakePoint(x, y), attributes);
   }
   const dark = $.NSColor.colorWithCalibratedWhiteAlpha(0.15, 1);
   const muted = $.NSColor.colorWithCalibratedWhiteAlpha(0.4, 1);
@@ -94,8 +96,7 @@ function run(args) {
   text("→", 165, 56, $.NSColor.colorWithCalibratedRedGreenBlueAlpha(0.25, 0.45, 0.9, 1));
   text("等待复制完成，再从“应用程序”打开 Cruio。", 64, 15, dark);
   text("Drag Cruio to Applications to install.", 34, 13, muted);
-  image.unlockFocus;
-  const bitmap = $.NSBitmapImageRep.imageRepWithData(image.TIFFRepresentation);
+  $.NSGraphicsContext.restoreGraphicsState;
   if (!bitmap.representationUsingTypeProperties($.NSPNGFileType, $({})).writeToFileAtomically(args[0], true)) {
     throw new Error("无法保存安装说明背景");
   }

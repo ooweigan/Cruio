@@ -1,3 +1,5 @@
+export { compareDesktopVersions, isDesktopVersion } from "../lib/desktopVersion";
+
 export type PluginInstallType = "node" | "tool" | "skill" | "provider" | "agent" | "ext";
 export type PluginInstallRequest = { type: PluginInstallType; url: string; fileName: string };
 

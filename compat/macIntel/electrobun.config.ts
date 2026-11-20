@@ -25,9 +25,9 @@ export default {
     mac: {
       icons: "../../packages/assets/logo.iconset",
       entitlements: { "com.apple.security.device.audio-input": true },
-      // ACT: 原生 SDK 已预留签名空间；Intel 的 Developer ID 签名与公证仍需单独验证后开启。
-      codesign: false,
-      notarize: false,
+      // ACT: 仅新四段桌面构建要求 Intel Developer ID 签名；CI 验证实际签名和公证票据。
+      codesign: process.env.macCodesign === "1",
+      notarize: process.env.macCodesign === "1",
     },
   },
   release: shared.release,

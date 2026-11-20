@@ -7,12 +7,12 @@ on:
         description: 构建平台
         type: choice
         default: windowsX64
-        options: [windowsX64, macArm64, macX64, androidArm64, all]
+        options: [windowsX64, macArm64, macX64, androidArm64, all, desktop]
       ref:
         description: 代码分支、标签或提交；签名构建要求与所选工作流版本为同一提交
         type: string
       version:
-        description: 包版本号（如 2.0.1），留空使用标签或项目配置
+        description: desktop 必填四段（如 0.0.0.1）；其他目标使用三段，留空使用三段标签或项目配置
         type: string
       generatePatch:
         description: 基于上一版本生成增量更新，尚无基线时生成首版完整包
@@ -82,8 +82,25 @@ jobs:
       - uses: actions/checkout@v7
         id: checkout
         with:
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ inputs.target == 'desktop' && github.sha || inputs.ref || github.sha }}
           persist-credentials: false
+      - uses: actions/checkout@v7
+        id: requestedRef
+        if: inputs.target == 'desktop' && inputs.ref != '' && inputs.ref != github.sha
+        with:
+          ref: ${{ inputs.ref }}
+          path: requestedRef
+          persist-credentials: false
+      - name: 校验四段构建来源
+        if: inputs.target == 'desktop'
+        env:
+          trustedCommit: ${{ github.sha }}
+          requestedCommit: ${{ (inputs.ref == '' || inputs.ref == github.sha) && github.sha || steps.requestedRef.outputs.commit }}
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$trustedCommit" || "$requestedCommit" != "$trustedCommit" ]]; then
+            echo '::error::desktop 仅允许构建触发工作流的提交。请将 ref 留空或指定同一提交。'
+            exit 1
+          fi
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
@@ -93,6 +110,8 @@ jobs:
           buildTarget: ${{ inputs.target }}
           buildRef: ${{ inputs.ref || github.ref_name }}
           buildVersion: ${{ inputs.version }}
+          buildGeneratePatch: ${{ inputs.generatePatch }}
+          buildAndroidRelease: ${{ inputs.androidRelease }}
         run: |
           bun -e '
           import { appendFileSync } from "node:fs";
@@ -104,18 +123,29 @@ jobs:
             { target: "androidArm64", os: "windows-2025", platform: "win32", arch: "x64", releaseFolder: "build/mobile/releases" },
           ];
           const selected = process.env.buildTarget || "all";
-          const include = targets.filter(item => selected === "all" || item.target === selected);
+          const desktop = selected === "desktop";
+          const desktopTargets = ["windowsX64", "macArm64", "macX64"];
+          const include = targets.filter(item => selected === "all" || item.target === selected || (desktop && desktopTargets.includes(item.target)));
           if (!include.length) throw new Error(`不支持的构建平台：${selected}`);
+          if (desktop && (process.env.buildGeneratePatch === "true" || process.env.buildAndroidRelease === "true")) {
+            throw new Error("desktop 仅构建桌面完整包，不接受 generatePatch 或 androidRelease");
+          }
+          const explicitVersion = process.env.buildVersion?.trim() ?? "";
           const refVersion = /^v\d+\.\d+\.\d+$/.test(process.env.buildRef ?? "") ? process.env.buildRef : "";
-          const version = (process.env.buildVersion?.trim() || refVersion || config.app.version).replace(/^v/, "");
-          if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("版本号必须为 X.Y.Z");
+          const version = (desktop ? explicitVersion : explicitVersion || refVersion || config.app.version).replace(/^v/, "");
+          if (desktop) {
+            const { isDesktopVersion } = await import("./apps/server/src/types/desktop.ts");
+            if (!isDesktopVersion(version) || version.split(".").length !== 4) throw new Error("desktop 必须显式传入四段版本 X.Y.Z.W");
+          } else if (!/^\d+\.\d+\.\d+$/.test(version)) {
+            throw new Error("版本号必须为三段 X.Y.Z");
+          }
           appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nmatrix=${JSON.stringify({ include })}\n`);
           '
 
   build:
     name: 构建 ${{ matrix.target }}
     needs: prepare
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    if: inputs.target == 'desktop' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -124,19 +154,19 @@ jobs:
     env:
       appVersion: ${{ needs.prepare.outputs.version }}
       releaseMode: ${{ inputs.generatePatch && '--auto' || '--initial' }}
-      macCodesign: ${{ matrix.target == 'macArm64' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v7
         with:
           # ACT: 签名只使用触发工作流的代码，避免额外 ref 引入未审查的 PR 代码。
-          ref: ${{ matrix.target == 'macArm64' && github.sha || needs.prepare.outputs.commit }}
+          ref: ${{ (inputs.target == 'desktop' || matrix.target == 'macArm64') && github.sha || needs.prepare.outputs.commit }}
           persist-credentials: false
-      - name: 校验签名来源
-        if: matrix.target == 'macArm64'
+      - name: 校验构建来源
+        if: inputs.target == 'desktop' || matrix.target == 'macArm64'
         env:
           buildCommit: ${{ needs.prepare.outputs.commit }}
+          trustedCommit: ${{ github.sha }}
         run: |
-          if [[ "$(git rev-parse HEAD)" != "$buildCommit" ]]; then
+          if [[ "$(git rev-parse HEAD)" != "$trustedCommit" || "$buildCommit" != "$trustedCommit" ]]; then
             echo '::error::签名构建不能使用其他提交。请选择对应的工作流分支或标签，并将 ref 留空。'
             exit 1
           fi
@@ -147,7 +177,15 @@ jobs:
         env:
           expectedPlatform: ${{ matrix.platform }}
           expectedArch: ${{ matrix.arch }}
-        run: bun -e 'if (process.platform !== process.env.expectedPlatform || process.arch !== process.env.expectedArch) throw new Error("运行器系统或架构与目标不一致");'
+          buildTarget: ${{ matrix.target }}
+          desktopBuild: ${{ inputs.target == 'desktop' }}
+        run: |
+          bun -e '
+          const desktopTargets = { windowsX64: ["win32", "x64"], macArm64: ["darwin", "arm64"], macX64: ["darwin", "x64"] };
+          const { buildTarget, desktopBuild, expectedPlatform, expectedArch } = process.env;
+          const expected = desktopBuild === "true" ? desktopTargets[buildTarget] : [expectedPlatform, expectedArch];
+          if (!expected || process.platform !== expected[0] || process.arch !== expected[1]) throw new Error("运行器系统或架构与目标不一致");
+          '
       - name: 准备 Android JDK 与 SDK 目录
         if: matrix.target == 'androidArm64'
         shell: pwsh
@@ -197,8 +235,8 @@ jobs:
         env:
           androidRelease: ${{ inputs.androidRelease && '1' || '0' }}
         run: bun run --cwd apps/mobile build
-      - name: 准备 ARM 签名与公证凭据
-        if: matrix.target == 'macArm64'
+      - name: 准备 macOS 签名与公证凭据
+        if: runner.os == 'macOS' && (inputs.target == 'desktop' || matrix.target == 'macArm64')
         id: signing
         env:
           certificateBase64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
@@ -250,7 +288,7 @@ jobs:
           printf 'identity=%s\n' "$identity" >> "$GITHUB_OUTPUT"
           printf 'notarizationKeyPath=%s\n' "$notarizationKeyPath" >> "$GITHUB_OUTPUT"
       - name: 为 Apple 公证票据网络错误启用有限重试
-        if: matrix.target == 'macArm64'
+        if: runner.os == 'macOS' && (inputs.target == 'desktop' || matrix.target == 'macArm64')
         run: |
           bun -e '
           import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "@toonflow/file";
@@ -263,16 +301,23 @@ jobs:
           chmodSync(target, 0o755);
           writeFileSync(process.env.GITHUB_PATH, `${directory}\n`, { flag: "a" });
           '
-      - name: 构建 macOS 安装包及更新文件（ARM 自动公证）
+      - name: 构建 macOS 安装包及更新文件
         if: runner.os == 'macOS'
         env:
+          macCodesign: ${{ (inputs.target == 'desktop' || matrix.target == 'macArm64') && '1' || '0' }}
           ELECTROBUN_DEVELOPER_ID: ${{ steps.signing.outputs.identity }}
-          ELECTROBUN_APPLEAPIKEY: ${{ matrix.target == 'macArm64' && secrets.MACOS_NOTARIZATION_KEY_ID || '' }}
-          ELECTROBUN_APPLEAPIISSUER: ${{ matrix.target == 'macArm64' && secrets.MACOS_NOTARIZATION_ISSUER_ID || '' }}
+          ELECTROBUN_APPLEAPIKEY: ${{ (inputs.target == 'desktop' || matrix.target == 'macArm64') && secrets.MACOS_NOTARIZATION_KEY_ID || '' }}
+          ELECTROBUN_APPLEAPIISSUER: ${{ (inputs.target == 'desktop' || matrix.target == 'macArm64') && secrets.MACOS_NOTARIZATION_ISSUER_ID || '' }}
           ELECTROBUN_APPLEAPIKEYPATH: ${{ steps.signing.outputs.notarizationKeyPath }}
-        run: bun run release:desktop "$appVersion" "$releaseMode"
-      - name: 清理 ARM 签名与公证凭据
-        if: always() && matrix.target == 'macArm64'
+        run: |
+          if ! bun run release:desktop "$appVersion" "$releaseMode"; then
+            if [[ "$macCodesign" == '1' && "$RUNNER_ARCH" == 'X64' ]]; then
+              echo '::error::Intel 四段包构建失败。请检查上方 Electrobun 1.18.1 签名、公证与原生兼容日志；不会上传未验证产物。'
+            fi
+            exit 1
+          fi
+      - name: 清理 macOS 签名与公证凭据
+        if: always() && runner.os == 'macOS' && (inputs.target == 'desktop' || matrix.target == 'macArm64')
         run: |
           rm -f "$RUNNER_TEMP/toonflowSigning.p12" "$RUNNER_TEMP/toonflowNotarization.p8"
           keychainPath="$RUNNER_TEMP/toonflowSigning.keychain-db"
@@ -283,13 +328,34 @@ jobs:
         if: runner.os == 'macOS'
         env:
           releaseDirectory: ${{ matrix.releaseFolder }}/${{ needs.prepare.outputs.version }}
+          requireMacSigning: ${{ inputs.target == 'desktop' || matrix.target == 'macArm64' }}
           signingIdentity: ${{ steps.signing.outputs.identity }}
+          desktopBuild: ${{ inputs.target == 'desktop' }}
+          expectedVersion: ${{ needs.prepare.outputs.version }}
         run: |
           verifyMacArtifact() {
-            if [[ "$macCodesign" == '1' ]]; then
+            if [[ "$requireMacSigning" == 'true' ]]; then
+              [[ "$signingIdentity" =~ ^[[:xdigit:]]{40}$ ]]
               codesign --verify --deep --strict --verbose=2 \
                 --test-requirement "=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf = H\"$signingIdentity\"" "$1"
               xcrun stapler validate "$1"
+            fi
+          }
+          verifyMacVersion() {
+            if [[ "$desktopBuild" == 'true' ]]; then
+              local contents="$1/Contents" major minor patch revision shortVersion bundleVersion appVersion
+              if [[ ! -s "$contents/Resources/version.json" || ! -s "$contents/Resources/app/bun/index.js" ]]; then
+                echo "::error::macOS 产物必须包含完整应用，不接受缺少业务版本或入口的自解压包装器：$1"
+                return 1
+              fi
+              IFS=. read -r major minor patch revision <<< "$expectedVersion"
+              shortVersion="$(plutil -extract CFBundleShortVersionString raw -expect string -o - "$contents/Info.plist")"
+              bundleVersion="$(plutil -extract CFBundleVersion raw -expect string -o - "$contents/Info.plist")"
+              appVersion="$(plutil -extract version raw -expect string -o - "$contents/Resources/version.json")"
+              if [[ "$shortVersion" != "$major.$minor.$patch" || "$bundleVersion" != "$((major == 0 ? 1 : major)).$minor.$patch" || "$appVersion" != "$expectedVersion" ]]; then
+                echo "::error::macOS 版本不匹配：$1（CFBundleShortVersionString=$shortVersion，CFBundleVersion=$bundleVersion，version.json=$appVersion）"
+                return 1
+              fi
             fi
           }
           inspectionDirectory="$RUNNER_TEMP/toonflowPackageCheck"
@@ -309,6 +375,7 @@ jobs:
           test -s "$app/Contents/Resources/AppIcon.icns"
           test -s "$app/Contents/Resources/app/bun/index.js"
           test -x "$app/Contents/MacOS/bun"
+          verifyMacVersion "$app"
           verifyMacArtifact "$app"
           mountDirectory="$inspectionDirectory/dmg"
           mkdir -p "$mountDirectory"
@@ -318,6 +385,7 @@ jobs:
             hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mountDirectory"
             trap 'hdiutil detach "$mountDirectory"' EXIT
             test -x "$mountDirectory/cruio.app/Contents/MacOS/launcher"
+            verifyMacVersion "$mountDirectory/cruio.app"
             verifyMacArtifact "$mountDirectory/cruio.app"
             hdiutil detach "$mountDirectory"
             trap - EXIT

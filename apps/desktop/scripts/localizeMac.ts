@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "@toonflow/file";
 import { file } from "@toonflow/file/bun";
+import { isDesktopVersion } from "@toonflow/server/desktop";
 import { join } from "node:path";
 
 if (process.env.ELECTROBUN_OS === "macos") {
@@ -39,7 +40,21 @@ if (process.env.ELECTROBUN_OS === "macos") {
     }
   }
 
+  const nativeVersions: [string, string][] = [];
+  const appVersion = process.env.appVersion;
+  if (appVersion?.split(".").length === 4) {
+    if (!isDesktopVersion(appVersion)) throw new Error("无效的四段 macOS 桌面版本号");
+    const [major = 0, minor = 0, patch = 0] = appVersion.split(".").map(Number);
+    if (major > 9999 || minor > 99 || patch > 99) throw new Error("桌面版本前三段超出 macOS CFBundleVersion 的位数限制");
+    // ACT: 只在签名前调整原生元数据；业务版本和更新顺序仍由 SDK 的四段 version.json / 清单决定。
+    nativeVersions.push(
+      ["CFBundleShortVersionString", `<string>${major}.${minor}.${patch}</string>`],
+      ["CFBundleVersion", `<string>${major || 1}.${minor}.${patch}</string>`],
+    );
+  }
+
   for (const [key, value] of [
+    ...nativeVersions,
     ["CFBundleDevelopmentRegion", "<string>zh-Hans</string>"],
     ["CFBundleLocalizations", "<array><string>zh-Hans</string></array>"],
     ["NSMicrophoneUsageDescription", "<string>用于语音输入和显示麦克风音量。</string>"],
